@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="theme-color" content="#1E56E3" />
+<meta name="description" content="巡考日历 —— 公务员国考/省考、事业单位、选调生、军队文职、三支一扶、留学生学历认证等招考节点的提醒与公告追踪工具。" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<title>巡考日历 · 招考节点提醒</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231E56E3'/><path d='M9 11h14M9 16h9M9 21h5' stroke='white' stroke-width='2.4' stroke-linecap='round'/></svg>" />
+<link rel="stylesheet" href="/css/app.css" />
+</head>
+<body>
+  <!-- 应用外壳：顶栏 + 页面容器 + 底部导航，内容由 hash 路由渲染 -->
+  <div class="app-shell">
+    <header class="app-bar" id="app-bar"></header>
+    <main class="app-main" id="app-main" aria-live="polite">
+      <div class="boot-splash">
+        <div class="boot-mark" aria-hidden="true"></div>
+        <p class="boot-text">正在加载巡考日历…</p>
+      </div>
+    </main>
+    <nav class="tab-bar" id="tab-bar" aria-label="主导航"></nav>
+  </div>
+
+  <div class="toast-stack" id="toast-stack" role="status" aria-live="polite"></div>
+  <div class="sheet-root" id="sheet-root"></div>
+  <div class="modal-root" id="modal-root"></div>
+
+  <script type="module" src="/js/main.mjs"></script>
+</body>
+</html>

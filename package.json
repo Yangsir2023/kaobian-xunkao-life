@@ -1,0 +1,37 @@
+{
+  "name": "kaobian-xunkao-life",
+  "version": "1.0.0",
+  "private": true,
+  "description": "巡考日历 —— 公务员国考/省考、事业单位、选调生、军队文职、三支一扶、留学生学历认证等招考节点提醒与公告追踪（移动端 Web App，零外部依赖）",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "node --watch server/index.mjs",
+    "seed": "node server/seed.mjs",
+    "test": "node tests/run.mjs",
+    "acceptance": "node scripts/acceptance.mjs"
+  },
+  "dependencies": {},
+  "optionalDependencies": {
+    "@cloudbase/node-sdk": "^2.9.0"
+  },
+  "keywords": [
+    "巡考",
+    "公考",
+    "国考",
+    "省考",
+    "事业单位",
+    "选调生",
+    "军队文职",
+    "三支一扶",
+    "留服认证",
+    "reminder",
+    "jwt",
+    "rbac",
+    "cloudbase"
+  ],
+  "license": "MIT"
+}

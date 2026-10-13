@@ -1,0 +1,29 @@
+# 依赖
+node_modules/
+npm-debug.log*
+
+# 环境变量与密钥（绝对不要提交）
+.env
+.env.local
+.gh_token
+*.pem
+*.key
+
+# 本地数据与上传文件（数据库本地驱动、用户上传的截图）
+data/*.json
+data/db/
+data/uploads/
+data/.jwt_secret
+
+# 运行产物
+*.log
+logs/
+.DS_Store
+Thumbs.db
+coverage/
+.nyc_output/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
