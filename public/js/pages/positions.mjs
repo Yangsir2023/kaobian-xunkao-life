@@ -1,11 +1,16 @@
 /**
  * 岗位库页 · 留学生友好岗位
  *
- * 回答四个问题：
+ * 回答五个问题：
  *   1) 哪些省我能报？        —— 省份筛选 + 分省政策基线
  *   2) 哪些方向我能报？      —— 计算机科学与技术（0812）/ 硕士不限专业
  *   3) 哪里分数低好上岸？    —— 不设开考比例 + 仅限应届 + 上岸分 50 多分或低于 120 分
  *   4) 哪里能捡漏？          —— 捡漏栏目：无人报考 + 不设开考比例 + 我能报 + 政审安全，五条全中才圈出来
+ *   5) 哪里能准捡漏？        —— 准捡漏栏目：报名≈招录 + 有进面分 + 专业可报 + 学历可报 + 政审安全，
+ *                             另标「无进面比 / 应届进面 / 分数持平」三条附加标记
+ *
+ * 分数口径：进面分必须带「口径」（总分 / 两科平均），并与官方合格线换算比对——
+ * 「200 分考 53.35」是口径误读（平均分口径 × 2 = 总分 106.7），详情页显式校准。
  *
  * 数据诚实边界：种子行一律标记「示例」或「第三方」，界面用 badge 明示；
  * 真实岗位由用户「录入岗位」或批量导入产生，标记「我的」。
@@ -30,6 +35,8 @@ const state = {
   maxScore: '',
   query: '',
   bargain: '',
+  nearBargain: '',
+  lowApply: '',
   sort: 'score_asc',
   loading: false,
 };
@@ -86,6 +93,8 @@ async function loadList() {
   if (state.maxScore !== '') params.maxScore = state.maxScore;
   if (state.query) params.q = state.query;
   if (state.bargain) params.bargain = '1';
+  if (state.nearBargain) params.nearBargain = '1';
+  if (state.lowApply) params.lowApply = '1';
 
   const data = await api.positions(params);
   state.rows = data.positions;
@@ -104,13 +113,18 @@ function shellHtml() {
 }
 
 function statsHtml() {
-  const s = state.stats || { total: 0, lowScore: 0, noRatio: 0, freshOnly: 0, provinces: 0, bargain: 0, zeroApply: 0 };
+  const s = state.stats || {
+    total: 0, lowScore: 0, noRatio: 0, freshOnly: 0, provinces: 0,
+    bargain: 0, zeroApply: 0, nearBargain: 0, nearPartial: 0, lowApply: 0,
+  };
   return `<div class="stat-strip">
     <div class="stat-cell"><div class="stat-value">${s.total}</div><div class="stat-label">岗位</div></div>
     <div class="stat-cell"><div class="stat-value is-soon">${s.lowScore}</div><div class="stat-label">低分上岸</div></div>
     <div class="stat-cell"><div class="stat-value is-ok">${s.noRatio}</div><div class="stat-label">不设比例</div></div>
     <div class="stat-cell"><div class="stat-value">${s.freshOnly}</div><div class="stat-label">仅限应届</div></div>
     <div class="stat-cell"><div class="stat-value is-bargain">${s.bargain ?? 0}</div><div class="stat-label">捡漏命中</div></div>
+    <div class="stat-cell"><div class="stat-value is-near">${s.nearBargain ?? 0}</div><div class="stat-label">准捡漏</div></div>
+    <div class="stat-cell"><div class="stat-value is-soon">${s.lowApply ?? 0}</div><div class="stat-label">低报名</div></div>
     <div class="stat-cell"><div class="stat-value">${s.provinces}</div><div class="stat-label">覆盖省份</div></div>
   </div>`;
 }
@@ -121,6 +135,12 @@ function filterHtml() {
     <div class="chip-scroll mt-10">
       <button class="chip chip-bargain ${state.bargain ? 'is-active' : ''}" data-bargain="1">
         ${icon('star', { size: 13, className: 'icon icon-sm' })}捡漏专区
+      </button>
+      <button class="chip chip-near ${state.nearBargain ? 'is-active' : ''}" data-near="1">
+        ${icon('checkCircle', { size: 13, className: 'icon icon-sm' })}准捡漏专区
+      </button>
+      <button class="chip ${state.lowApply ? 'is-active' : ''}" data-lowapply="1">
+        ${icon('users', { size: 13, className: 'icon icon-sm' })}低报名专区
       </button>
       <button class="chip" data-guide="1">${icon('signpost', { size: 13, className: 'icon icon-sm' })}捡漏攻略</button>
       <button class="chip ${state.majorTrack === PRESET.majorTrack && state.ratioType === PRESET.ratioType && state.freshOnly === PRESET.freshOnly && state.bands.includes('lt120') ? 'is-active' : ''}" data-preset="1">
@@ -157,7 +177,9 @@ function hasFilter() {
     state.bands.length > 0 ||
     state.maxScore !== '' ||
     Boolean(state.query) ||
-    Boolean(state.bargain)
+    Boolean(state.bargain) ||
+    Boolean(state.nearBargain) ||
+    Boolean(state.lowApply)
   );
 }
 
@@ -184,6 +206,24 @@ function listHtml() {
         actionId: 'empty-guide',
       });
     }
+    if (state.nearBargain) {
+      return emptyState({
+        iconName: 'checkCircle',
+        title: '当前没有命中准捡漏的岗位',
+        desc: '准捡漏 = 报名≈招录 + 有进面分 + 专业可报 + 学历可报 + 政审安全；命中后会额外标注「无进面比 / 应届进面 / 分数持平」。低报名岗位集中在三支一扶、社区工作者、西部计划与人才引进——点「捡漏攻略」看这些考试的开考比例口径。',
+        actionLabel: '打开捡漏攻略',
+        actionId: 'empty-guide',
+      });
+    }
+    if (state.lowApply) {
+      return emptyState({
+        iconName: 'users',
+        title: '当前没有低报名岗位',
+        desc: '低报名 = 报名/缴费人数不超过招录人数的 1.5 倍（或仅多两三个人）。这类岗位多数来自三支一扶、社区工作者等「未达开考比例被取消/核减」的公告，录进来即可自动命中。',
+        actionLabel: '打开捡漏攻略',
+        actionId: 'empty-guide',
+      });
+    }
     return emptyState({
       iconName: 'filter',
       title: '没有符合条件的岗位',
@@ -193,11 +233,26 @@ function listHtml() {
     });
   }
   const sortLabel = state.catalogs.sorts.find((s) => s.key === state.sort)?.label || '';
-  const bargainNote = state.bargain
-    ? `<div class="bargain-banner mt-10">${icon('star', { size: 14 })}<div class="grow">捡漏专区：以下岗位五条件全中（无人报考 + 不设开考比例 + 专业对口 + 学历达标 + 政审安全）。数据截至各行的「数据更新日期」，报名窗口内请每日回官方渠道复核。</div></div>`
-    : '';
+  const banners = [];
+  if (state.bargain) {
+    banners.push(
+      `<div class="bargain-banner mt-10">${icon('star', { size: 14 })}<div class="grow">捡漏专区：以下岗位五条件全中（无人报考 + 不设开考比例 + 专业对口 + 学历达标 + 政审安全）。数据截至各行的「数据更新日期」，报名窗口内请每日回官方渠道复核。</div></div>`
+    );
+  }
+  if (state.nearBargain) {
+    const hit = state.stats?.nearBargain ?? 0;
+    const part = state.stats?.nearPartial ?? 0;
+    banners.push(
+      `<div class="nearbargain-banner mt-10">${icon('checkCircle', { size: 14 })}<div class="grow">准捡漏专区：<b>命中 ${hit} 条</b>（五条全中）+ <b>接近 ${part} 条</b>（低竞争 + 学历可报 + 政审安全已成立，只差逐条核对专业通道）。卡片上另标「无进面比 / 应届进面 / 分数持平」，命中亮起、缺失显示「未标记」。</div></div>`
+    );
+  }
+  if (state.lowApply) {
+    banners.push(
+      `<div class="lowapply-banner mt-10">${icon('users', { size: 14 })}<div class="grow">低报名专区：报名人数不超过招录人数的 1.5 倍（或仅多两三个人）。报名人数缺失时按「竞争比 × 招录人数 → 过审 → 缴费」的顺序退用，口径会标在详情页。<b>保守口径</b>：只要行内任一可得的人数超出上限，就不算低报名——宁可少报，也不拿矛盾的数字凑数。</div></div>`
+    );
+  }
   return `<div class="small muted" style="margin:2px 0 8px">共 ${state.rows.length} 条 · ${sortLabel}</div>
-    ${bargainNote}
+    ${banners.join('')}
     <div class="card-list">${state.rows.map(cardHtml).join('')}</div>`;
 }
 
@@ -209,10 +264,13 @@ function cardHtml(row) {
   const bands = row.scoreBands || [];
   const hasMax = row.scoreMax != null;
   const bargain = row.bargain || { hit: false };
-  return `<article class="pos-card ${bargain.hit ? 'is-bargain' : ''}" data-id="${row.id}">
+  const near = row.nearBargain || { hit: false, partial: false, marks: [] };
+  const cls = [bargain.hit ? 'is-bargain' : '', near.hit ? 'is-nearbargain' : ''].filter(Boolean).join(' ');
+  return `<article class="pos-card ${cls}" data-id="${row.id}">
     <div class="pos-head">
       <span class="pos-province">${escapeHtml(row.province)}</span>
       ${bargain.hit ? `<span class="bargain-badge">${icon('star', { size: 12, className: 'icon icon-sm' })}捡漏</span>` : ''}
+      ${near.hit ? `<span class="nearbargain-badge">${icon('checkCircle', { size: 12, className: 'icon icon-sm' })}准捡漏</span>` : ''}
       <span class="badge badge-outline">${escapeHtml(row.examTypeName)}</span>
       <span class="badge" style="background:${row.dataLevelAccent};color:${row.dataLevelColor}">${escapeHtml(row.dataLevelName)}</span>
       ${row.freshOnly ? '<span class="badge badge-success">应届</span>' : ''}
@@ -228,10 +286,15 @@ function cardHtml(row) {
       <span class="pos-tag" style="background:${trackColor(row)};color:#fff">${escapeHtml(row.majorTrackName)}</span>
       <span class="pos-tag is-${row.ratioType}">${escapeHtml(row.ratioTypeName)}</span>
       <span class="pos-tag is-plain">${escapeHtml(row.degreeName)}</span>
+      ${row.scoreBasis === 'avg100' ? '<span class="pos-tag is-plain">平均分口径</span>' : ''}
       ${bands.includes('low50') ? '<span class="pos-tag is-low">50 多分</span>' : ''}
       ${bands.includes('lt120') ? '<span class="pos-tag is-low">低于 120 分</span>' : ''}
       ${row.applicants === 0 ? '<span class="pos-tag is-zero">零报名</span>' : ''}
+      ${row.lowApply ? '<span class="pos-tag is-lowapply">低报名</span>' : ''}
+      ${row.ratioShortfall ? '<span class="pos-tag is-lowapply">未达开考比例</span>' : ''}
+      ${(row.dataIssues || []).length ? '<span class="pos-tag is-belowline">报名数据待核验</span>' : ''}
       ${row.policePosition ? '<span class="pos-tag is-police">政法类 · 留学生禁入</span>' : ''}
+      ${row.belowOfficialLine ? '<span class="pos-tag is-belowline">低于官方线 · 待核验</span>' : ''}
       ${row.competition ? `<span class="pos-tag is-plain">竞争比 ${row.competition}:1</span>` : ''}
     </div>
     ${
@@ -241,11 +304,27 @@ function cardHtml(row) {
             ${hasMax ? ` · 最高 <b class="num">${row.scoreMax}</b>` : ''}
             ${row.scoreAvg != null ? ` · 平均 <b class="num">${row.scoreAvg}</b>` : ''}
             ${row.scoreTotal ? `<span class="muted"> / 满分 ${row.scoreTotal}</span>` : ''}
+            ${row.officialScoreLine != null ? `<span class="muted"> · 官方合格线 <b class="num">${row.officialScoreLine}</b></span>` : ''}
           </div>`
         : ''
     }
+    ${markRowHtml(near)}
     ${row.notes ? `<div class="pos-notes">${escapeHtml(row.notes)}</div>` : ''}
   </article>`;
+}
+
+/** 准捡漏附加标记行：无进面比 / 应届进面 / 分数持平，命中亮起、缺失灰显 */
+function markRowHtml(near) {
+  const marks = near?.marks || [];
+  if (!marks.length || (!near.hit && !near.partial)) return '';
+  const chips = marks
+    .map(
+      (m) => `<span class="bargain-mark ${m.ok ? 'is-on' : ''}" title="${escapeHtml(m.hint)}">
+        <span class="bargain-mark-dot"></span>${escapeHtml(m.label)}${m.ok ? '' : ' · 未标'}
+      </span>`
+    )
+    .join('');
+  return `<div class="bargain-mark-list">${chips}</div>`;
 }
 
 function trackColor(row) {
@@ -254,15 +333,28 @@ function trackColor(row) {
   return track?.color || '#4B5563';
 }
 
-/** 报名数据块：竞争比 + 各环节人数，直接反映上岸难度 */
+/** 报名数据块：招录 + 竞争比 + 各环节人数，直接反映上岸难度 */
 function applyBlockHtml(row) {
   const cells = [
+    { label: '招录人数', value: row.planCount },
     { label: '竞争比', value: row.competition != null ? `${row.competition}:1` : null },
     { label: '报名人数', value: row.applicants },
     { label: '过审人数', value: row.approvedCount },
     { label: '缴费人数', value: row.paidCount },
   ].filter((c) => c.value !== null && c.value !== undefined);
   if (!cells.length) return '';
+  const countNote =
+    row.effectiveApplicants != null
+      ? `<div class="tiny muted mt-6">「低报名」判定用的报名规模：<b class="num">${row.effectiveApplicants}</b>${
+          row.applyCountSourceName ? `（口径：${escapeHtml(row.applyCountSourceName)}）` : ''
+        }${row.lowApply ? ' —— 落在低报名区间' : ' —— 超出低报名区间'}</div>`
+      : '';
+  const shortfallNote = row.ratioShortfall
+    ? `<div class="notice notice-info mt-10">${icon('info', { size: 16 })}<div class="grow"><b>公告级低报名证据</b>：该岗位所属批次的官方公告明确「报名/缴费人数未达开考比例」，已被核减、取消或调整计划——比任何推算数字都直接，因此直接计入低报名。公告原文见下方备注与来源链接。</div></div>`
+    : '';
+  const issueNote = (row.dataIssues || []).length
+    ? `<div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow"><b>报名数据待核验</b>：${row.dataIssues.map((t) => escapeHtml(t)).join('；')}。本应用不会拿互相矛盾的数字去宣称「报名≈招录」，报考前请以官方报名统计与职位表复核。</div></div>`
+    : '';
   return `<div class="apply-strip mt-10">
     ${cells
       .map(
@@ -272,7 +364,10 @@ function applyBlockHtml(row) {
         </div>`
       )
       .join('')}
-  </div>`;
+  </div>
+  ${countNote}
+  ${shortfallNote}
+  ${issueNote}`;
 }
 
 /** 捡漏条件核对：五条逐项对错标记，全中才值得报；政法类职位给出政审警告 */
@@ -301,6 +396,114 @@ function bargainBlockHtml(row) {
         ? `<div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow"><b>公安政法类职位（人民警察）</b>：非公派原因曾六个月以上在国（境）外留学、工作、生活的不得报考（《公安机关录用人民警察政治考察工作办法》公通字〔2020〕11号及各地报考指南口径）。自费留学一年以上基本中招，专业再对口也不构成捡漏。</div></div>`
         : ''
     }`;
+}
+
+/** 通用条件核对渲染：conditions = [{label, hint, ok}] */
+function condListHtml(conditions) {
+  return conditions
+    .map(
+      (c) => `<div class="bargain-cond ${c.ok ? 'is-ok' : 'is-off'}">
+        <span class="bargain-cond-mark">${c.ok ? icon('check', { size: 13 }) : icon('close', { size: 13 })}</span>
+        <div class="grow">
+          <div class="bargain-cond-label">${escapeHtml(c.label)}</div>
+          <div class="tiny muted">${escapeHtml(c.hint)}</div>
+        </div>
+      </div>`
+    )
+    .join('');
+}
+
+/**
+ * 准捡漏条件核对：五条件 + 三条附加标记。
+ * 「没有进面比（没有就标记一下）」「有进面的应届生」「分数与上年持平」都在 marks 里显式呈现，
+ * 缺失时显示「未标」，避免用户误以为已核验。
+ */
+function nearBargainBlockHtml(row) {
+  const near = row.nearBargain || { hit: false, partial: false, conditions: [], marks: [] };
+  if (!near.conditions || !near.conditions.length) return '';
+  const miss = near.conditions.filter((c) => !c.ok).length;
+  const stateLabel = near.hit ? '五条全中 · 准捡漏' : near.partial ? `接近（还差 ${miss} 条）` : `还差 ${miss} 条`;
+  const marks = (near.marks || [])
+    .map(
+      (m) => `<div class="bargain-cond ${m.ok ? 'is-ok' : 'is-off'}">
+        <span class="bargain-cond-mark">${m.ok ? icon('check', { size: 13 }) : icon('minus', { size: 13 })}</span>
+        <div class="grow">
+          <div class="bargain-cond-label">${escapeHtml(m.label)}${m.ok ? '' : ' · 未标记'}</div>
+          <div class="tiny muted">${escapeHtml(m.hint)}</div>
+        </div>
+      </div>`
+    )
+    .join('');
+  return `<div class="section-head mt-14">
+      <h2 class="section-title">准捡漏条件核对</h2>
+      <span class="section-hint">${stateLabel}</span>
+    </div>
+    <div class="bargain-cond-list">${condListHtml(near.conditions)}</div>
+    ${
+      marks
+        ? `<div class="section-head mt-14">
+             <h2 class="section-title">附加标记</h2>
+             <span class="section-hint">没有就标一下</span>
+           </div>
+           <div class="bargain-cond-list">${marks}</div>`
+        : ''
+    }`;
+}
+
+/**
+ * 分数口径核验：进面分怎么读 + 官方合格线 + 换算比对。
+ * 这一步专门消除「200 分考 53.35」的口径误读：avg100 口径 × 2 = 总分，再和官方线比。
+ */
+function scoreCaliberHtml(row) {
+  if (row.scoreMin == null) return '';
+  const basis = row.scoreBasis === 'avg100' ? '两科平均口径（百分制合成）' : '总分口径（行测 + 申论）';
+  const inTotal =
+    row.scoreInTotal != null
+      ? row.scoreInTotal
+      : row.scoreBasis === 'avg100'
+        ? Math.round(row.scoreMin * 200) / 100
+        : row.scoreMin;
+  const line = row.officialScoreLine;
+  const gap = row.scoreLineGap;
+  const below = row.belowOfficialLine;
+  return `<div class="section-head mt-14">
+      <h2 class="section-title">分数口径核验</h2>
+      <span class="section-hint">口径 · 官方合格线</span>
+    </div>
+    <div class="caliber-box">
+      <div class="caliber-grid">
+        <div class="caliber-cell">
+          <div class="caliber-value">${escapeHtml(row.scoreBasisName || '总分')}</div>
+          <div class="caliber-label">本行展示口径</div>
+        </div>
+        <div class="caliber-cell">
+          <div class="caliber-value num">${inTotal}</div>
+          <div class="caliber-label">折算成总分口径</div>
+        </div>
+        <div class="caliber-cell ${line != null ? (below ? 'is-warn' : 'is-ok') : ''}">
+          <div class="caliber-value num">${line != null ? line : '—'}</div>
+          <div class="caliber-label">官方笔试合格线</div>
+        </div>
+        <div class="caliber-cell ${gap != null ? (below ? 'is-warn' : 'is-ok') : ''}">
+          <div class="caliber-value num">${gap != null ? (gap >= 0 ? '+' : '') + gap : '—'}</div>
+          <div class="caliber-label">进面分 − 合格线</div>
+        </div>
+      </div>
+      <div class="caliber-foot">
+        本行进面分为<b>${escapeHtml(basis)}</b>：${row.scoreBasis === 'avg100' ? `${row.scoreMin} 分合成成绩折合总分 ${inTotal} 分（合成成绩 × 2 = 总分）` : `${row.scoreMin} 分即总分口径`}。
+        ${line != null ? `官方合格线 ${line} 分为总分口径，${below ? `本行折算后<b>低于</b>合格线 ${Math.abs(gap)} 分，已标记「数据待核验」` : `本行折算后<b>高于</b>合格线 ${gap} 分，数据自洽`}。` : '本行暂未录入官方合格线，可在「编辑」里补上。'}
+      </div>
+      ${
+        row.officialScoreLineNote
+          ? `<div class="caliber-foot">合格线备注：${escapeHtml(row.officialScoreLineNote)}</div>`
+          : ''
+      }
+      ${
+        row.scoreBasis === 'avg100'
+          ? `<div class="caliber-foot">口径说明：「满分 200 却只考 53.35」是口径错位——53.35 是两科各占 50% 的合成成绩，不是总分。折算成总分约 ${inTotal} 分，属正常进面分。</div>`
+          : ''
+      }
+    </div>`;
 }
 
 /* ───────────────── 交互 ───────────────── */
@@ -340,6 +543,20 @@ function bind(root) {
   root.querySelectorAll('[data-bargain]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       state.bargain = state.bargain ? '' : '1';
+      await rerender(root);
+    });
+  });
+
+  root.querySelectorAll('[data-near]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      state.nearBargain = state.nearBargain ? '' : '1';
+      await rerender(root);
+    });
+  });
+
+  root.querySelectorAll('[data-lowapply]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      state.lowApply = state.lowApply ? '' : '1';
       await rerender(root);
     });
   });
@@ -418,6 +635,8 @@ function resetFilters() {
   state.maxScore = '';
   state.query = '';
   state.bargain = '';
+  state.nearBargain = '';
+  state.lowApply = '';
 }
 
 async function rerender(root) {
@@ -556,6 +775,7 @@ async function openDetailSheet(id) {
 
       ${applyBlockHtml(row)}
       ${bargainBlockHtml(row)}
+      ${nearBargainBlockHtml(row)}
 
       <div class="section-head mt-14">
         <h2 class="section-title">进面分数线</h2>
@@ -585,13 +805,18 @@ async function openDetailSheet(id) {
       }
       ${
         row.scoreMin != null && row.scoreTotal
-          ? `<div class="notice notice-info mt-10">${icon('info', { size: 16 })}<div class="grow">最低进面分 ${row.scoreMin} / 满分 ${row.scoreTotal}，即笔试拿到满分的 ${Math.round((row.scoreMin / row.scoreTotal) * 100)}% 就能进面。${
+          ? `<div class="notice notice-info mt-10">${icon('info', { size: 16 })}<div class="grow">本行进面分为 <b>${escapeHtml(row.scoreBasisName || '总分')}口径 ${row.scoreMin}</b>${
+              row.scoreBasis === 'avg100'
+                ? `，折合总分口径约 <b class="num">${row.scoreInTotal ?? row.scoreMin * 2}</b> 分（合成成绩 × 2 = 总分）。`
+                : `（行测 + 申论直接相加，满分 ${row.scoreTotal}）。`
+            }${
               row.scoreMax != null && row.scoreMax > row.scoreMin
-                ? ` 分差 ${(row.scoreMax - row.scoreMin).toFixed(2)} 分（最高与最低进面分之差），分差越小说明进面同学分数越集中、压线进面越难。`
+                ? ` 最高与最低进面分差 ${(row.scoreMax - row.scoreMin).toFixed(2)} 分，分差越小说明进面同学分数越集中、压线进面越难。`
                 : ''
             }</div></div>`
           : ''
       }
+      ${scoreCaliberHtml(row)}
 
       <div class="kv-list mt-14">
         <div class="kv"><div class="kv-key">招录单位</div><div class="kv-val">${escapeHtml(row.unit)}</div></div>
@@ -599,8 +824,11 @@ async function openDetailSheet(id) {
         <div class="kv"><div class="kv-key">专业方向</div><div class="kv-val">${escapeHtml(row.majorText || row.majorTrackName)}</div></div>
         <div class="kv"><div class="kv-key">专业通道</div><div class="kv-val">${escapeHtml(track?.name || row.majorTrackName)}<div class="tiny muted mt-6">${escapeHtml(track?.desc || '')}</div></div></div>
         <div class="kv"><div class="kv-key">学历层次</div><div class="kv-val">${escapeHtml(row.degreeName)}</div></div>
-        <div class="kv"><div class="kv-key">开考比例</div><div class="kv-val">${escapeHtml(row.ratioText || row.ratioTypeName)}</div></div>
-        <div class="kv"><div class="kv-key">应届要求</div><div class="kv-val">${row.freshOnly ? '仅限应届高校毕业生' : '不限应届'}</div></div>
+        <div class="kv"><div class="kv-key">招录人数</div><div class="kv-val num">${row.planCount != null ? row.planCount : '—'}</div></div>
+        <div class="kv"><div class="kv-key">开考比例</div><div class="kv-val">${escapeHtml(row.ratioText || row.ratioTypeName)}${row.ratioFlexible ? '<div class="tiny muted mt-6">公告明确未达比例也可开考 / 不递减指标</div>' : ''}</div></div>
+        <div class="kv"><div class="kv-key">分数口径</div><div class="kv-val">${escapeHtml(row.scoreBasisName || '总分')}<div class="tiny muted mt-6">${escapeHtml(row.scoreBasisHint || (row.scoreBasis === 'avg100' ? '行测、申论各占 50% 的百分制合成成绩（合成 × 2 = 总分）' : '行测 + 申论直接相加（满分 200）'))}</div></div></div>
+        <div class="kv"><div class="kv-key">官方合格线</div><div class="kv-val num">${row.officialScoreLine != null ? `${row.officialScoreLine}（总分口径）` : '—'}<div class="tiny muted mt-6">${escapeHtml(row.officialScoreLineNote || '未录入，可在「编辑」补充当地公告的最低分数线')}</div></div></div>
+        <div class="kv"><div class="kv-key">应届要求</div><div class="kv-val">${row.freshOnly ? '仅限应届高校毕业生' : '不限应届'}${row.freshInterview ? '<div class="tiny muted mt-6">本岗位有应届生进面记录</div>' : ''}</div></div>
         ${row.policePosition ? '<div class="kv"><div class="kv-key">职位性质</div><div class="kv-val">公安政法类（人民警察）<div class="tiny muted mt-6">留学生政审禁入：非公派原因曾六个月以上在国（境）外留学、工作、生活的不得报考</div></div></div>' : ''}
         <div class="kv"><div class="kv-key">数据级别</div><div class="kv-val">${escapeHtml(cat.dataLevels.find((d) => d.key === row.dataLevel)?.desc || '')}</div></div>
       </div>
@@ -753,12 +981,37 @@ function openEditorSheet(existing = null) {
       </div>
       <div class="field-row">
         <div class="field grow">
+          <div class="field-label">招录人数</div>
+          <input class="input num" id="p-plancount" type="number" min="1" max="9999" placeholder="如 1" value="${v.planCount ?? ''}" />
+        </div>
+        <div class="field grow">
+          <div class="field-label">分数口径<span class="req">*</span></div>
+          <select class="select" id="p-scorebasis">
+            ${(cat.scoreBases || [])
+              .map((b) => `<option value="${b.key}" ${(v.scoreBasis || 'total') === b.key ? 'selected' : ''}>${escapeHtml(b.name)}</option>`)
+              .join('')}
+          </select>
+        </div>
+      </div>
+      <div class="field-hint mt-6">分数口径决定数字怎么读：<b>总分口径</b>= 行测 + 申论直接相加；<b>两科平均口径</b>= 各占 50% 的百分制合成成绩（合成 × 2 = 总分）。「200 分考 53.35」属于后者，录入时选对口径，详情页会自动换算比对官方合格线。</div>
+      <div class="field-row">
+        <div class="field grow">
           <div class="field-label">最低进面分<span class="req">*</span></div>
           <input class="input num" id="p-scoremin" type="number" min="0" max="300" step="0.01" placeholder="如 53.35" value="${v.scoreMin ?? v.score ?? ''}" />
         </div>
         <div class="field grow">
           <div class="field-label">满分</div>
           <input class="input num" id="p-total" type="number" min="0" max="300" placeholder="200" value="${v.scoreTotal ?? 200}" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field grow">
+          <div class="field-label">官方笔试合格线（总分口径）</div>
+          <input class="input num" id="p-officialline" type="number" min="0" max="300" step="0.01" placeholder="如 95" value="${v.officialScoreLine ?? ''}" />
+        </div>
+        <div class="field grow">
+          <div class="field-label">合格线备注</div>
+          <input class="input" id="p-officialnote" placeholder="如：云南 2026 县级机关 95 分" value="${escapeHtml(v.officialScoreLineNote || '')}" />
         </div>
       </div>
       <div class="field-row">
@@ -815,6 +1068,26 @@ function openEditorSheet(existing = null) {
         </label>
       </div>
       <div class="field">
+        <div class="field-label">准捡漏标记<span class="tiny muted" style="font-weight:400">（没有就留空，卡片上会显示「未标」）</span></div>
+        <label class="row" style="gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" id="p-ratioflex" ${v.ratioFlexible ? 'checked' : ''} />
+          <span class="small">无进面比：公告明确未达比例也可开考 / 不递减指标</span>
+        </label>
+        <label class="row" style="gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" id="p-freshinterview" ${v.freshInterview ? 'checked' : ''} />
+          <span class="small">应届进面：有应届生进面的记录</span>
+        </label>
+        <label class="row" style="gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" id="p-scorestable" ${v.scoreStable ? 'checked' : ''} />
+          <span class="small">分数持平：进面分与上年基本一致</span>
+        </label>
+        <label class="row" style="gap:8px;cursor:pointer;margin-top:6px">
+          <input type="checkbox" id="p-shortfall" ${v.ratioShortfall ? 'checked' : ''} />
+          <span class="small">公告明确未达开考比例：报名/缴费不足，已被核减、取消或调整计划</span>
+        </label>
+        <div class="field-hint mt-6">「未达开考比例」是公告级的低报名证据——勾上后即使没记到具体报名人数，也会进「低报名专区」，并在详情页标注证据来自公告。</div>
+      </div>
+      <div class="field">
         <label class="row" style="gap:8px;cursor:pointer">
           <input type="checkbox" id="p-police" ${v.policePosition ? 'checked' : ''} />
           <span class="small">公安政法类职位（边检 / 缉私 / 移民 / 监狱 / 司法警察等人民警察职位）</span>
@@ -857,15 +1130,23 @@ function openEditorSheet(existing = null) {
           majorText: body.querySelector('#p-majortext').value.trim(),
           degree: body.querySelector('#p-degree').value,
           freshOnly: body.querySelector('#p-fresh').checked,
+          freshInterview: body.querySelector('#p-freshinterview').checked,
           policePosition: body.querySelector('#p-police').checked,
           ratioType: body.querySelector('#p-ratio').value,
+          ratioFlexible: body.querySelector('#p-ratioflex').checked,
+          ratioShortfall: body.querySelector('#p-shortfall').checked,
           ratioText: body.querySelector('#p-ratiotext').value.trim(),
+          planCount: body.querySelector('#p-plancount').value,
+          scoreStable: body.querySelector('#p-scorestable').checked,
           // score 字段是旧版单值口径，现在统一以 scoreMin 为权威，显式置空避免旧值遮挡
           score: null,
+          scoreBasis: body.querySelector('#p-scorebasis').value,
           scoreMin: body.querySelector('#p-scoremin').value,
           scoreMax: body.querySelector('#p-scoremax').value,
           scoreAvg: body.querySelector('#p-scoreavg').value,
           scoreTotal: body.querySelector('#p-total').value,
+          officialScoreLine: body.querySelector('#p-officialline').value,
+          officialScoreLineNote: body.querySelector('#p-officialnote').value.trim(),
           scoreNote: body.querySelector('#p-scorenote').value.trim(),
           competition: body.querySelector('#p-competition').value,
           applicants: body.querySelector('#p-applicants').value,
@@ -915,7 +1196,7 @@ function openBargainSheet() {
     toast('攻略数据加载中，请稍后重试');
     return;
   }
-  const { window: win, conditions, policeBar, noResume, zeroTip } = guide;
+  const { window: win, conditions, policeBar, noResume, zeroTip, nearConditions, nearMarks, rencaiQs200, noRatioExams, scoreCalibration } = guide;
 
   openSheet({
     title: '捡漏攻略',
@@ -941,15 +1222,30 @@ function openBargainSheet() {
       </div>
 
       <div class="filter-group">
-        <div class="filter-group-title">二、捡漏五条件（本应用的判定口径）</div>
+        <div class="filter-group-title">二、捡漏五条件（五条全中才圈出来）</div>
         <ul class="policy-list">
           ${conditions.map((c, i) => `<li><b>${i + 1}. ${escapeHtml(c.label)}</b>——${escapeHtml(c.hint)}</li>`).join('')}
         </ul>
-        <div class="small muted mt-6">五条全中才会被「圈出来」；详情页逐条展示对错标记，差几条一目了然。</div>
       </div>
 
+      ${
+        nearConditions
+          ? `<div class="filter-group">
+              <div class="filter-group-title">三、准捡漏五条件（报名≈招录 · 更容易碰上）</div>
+              <ul class="policy-list">
+                ${nearConditions.map((c, i) => `<li><b>${i + 1}. ${escapeHtml(c.label)}</b>——${escapeHtml(c.hint)}</li>`).join('')}
+              </ul>
+              <div class="small muted mt-6">三条附加标记（不淘汰，只标注，命中亮起、缺失显示「未标」）：</div>
+              <ul class="policy-list mt-6">
+                ${(nearMarks || []).map((m) => `<li><b>${escapeHtml(m.label)}</b>——${escapeHtml(m.hint)}</li>`).join('')}
+              </ul>
+              <div class="small muted mt-6">为什么单列准捡漏：全国「无人报考 + 不设比例 + 专业对口 + 政审安全」四件事同时成立的位置极其稀缺；而三支一扶、社区工作者、西部计划里「报名人数跟岗位数几乎一比一」的岗位常见得多——这些才是真正抓得住的漏。</div>
+            </div>`
+          : ''
+      }
+
       <div class="filter-group">
-        <div class="filter-group-title">三、${escapeHtml(policeBar.title)}</div>
+        <div class="filter-group-title">四、${escapeHtml(policeBar.title)}</div>
         <div class="note-box">${escapeHtml(policeBar.quote)}</div>
         <ul class="policy-list mt-6">
           ${policeBar.points.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
@@ -961,7 +1257,7 @@ function openBargainSheet() {
       </div>
 
       <div class="filter-group">
-        <div class="filter-group-title">四、${escapeHtml(noResume.title)}</div>
+        <div class="filter-group-title">五、${escapeHtml(noResume.title)}</div>
         <ul class="policy-list">
           ${noResume.points.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
         </ul>
@@ -971,7 +1267,7 @@ function openBargainSheet() {
       </div>
 
       <div class="filter-group">
-        <div class="filter-group-title">五、${escapeHtml(zeroTip.title)}</div>
+        <div class="filter-group-title">六、${escapeHtml(zeroTip.title)}</div>
         <div class="note-box">${escapeHtml(zeroTip.stats)}</div>
         <ul class="policy-list mt-6">
           ${zeroTip.lessons.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
@@ -981,8 +1277,85 @@ function openBargainSheet() {
         </a>
       </div>
 
+      ${
+        rencaiQs200
+          ? `<div class="filter-group">
+              <div class="filter-group-title">七、${escapeHtml(rencaiQs200.title)}</div>
+              <div class="notice notice-info">${icon('info', { size: 16 })}<div class="grow">${escapeHtml(rencaiQs200.note)}</div></div>
+              <div class="mt-10">
+                ${(rencaiQs200.regions || [])
+                  .map(
+                    (r) => `<div class="region-card">
+                      <div class="region-name">${escapeHtml(r.region)}</div>
+                      <div class="region-line"><b>对象</b>：${escapeHtml(r.scope)}</div>
+                      <div class="region-line"><b>窗口</b>：${escapeHtml(r.window)}</div>
+                      <div class="region-line"><b>亮点</b>：${escapeHtml(r.feature)}</div>
+                      <a class="link-out tiny" href="${escapeHtml(r.sourceUrl)}" target="_blank" rel="noopener">
+                        ${icon('external', { size: 12, className: 'icon icon-sm' })}${escapeHtml(r.sourceName)}
+                      </a>
+                    </div>`
+                  )
+                  .join('')}
+              </div>
+              <ul class="policy-list mt-10">
+                ${(rencaiQs200.tips || []).map((t) => `<li>${escapeHtml(t)}</li>`).join('')}
+              </ul>
+            </div>`
+          : ''
+      }
+
+      ${
+        noRatioExams
+          ? `<div class="filter-group">
+              <div class="filter-group-title">八、${escapeHtml(noRatioExams.title)}</div>
+              ${(noRatioExams.items || [])
+                .map(
+                  (it) => `<div class="region-card">
+                    <div class="region-name">${escapeHtml(it.name)}</div>
+                    <div class="region-line"><b>开考比例</b>：${escapeHtml(it.ratio)}</div>
+                    <div class="region-line"><b>特点</b>：${escapeHtml(it.feature)}</div>
+                    <div class="region-line"><b>低报名实例</b>：${escapeHtml(it.lowApply)}</div>
+                    <a class="link-out tiny" href="${escapeHtml(it.sourceUrl)}" target="_blank" rel="noopener">
+                      ${icon('external', { size: 12, className: 'icon icon-sm' })}${escapeHtml(it.sourceName)}
+                    </a>
+                  </div>`
+                )
+                .join('')}
+            </div>`
+          : ''
+      }
+
+      ${
+        scoreCalibration
+          ? `<div class="filter-group">
+              <div class="filter-group-title">九、${escapeHtml(scoreCalibration.title)}</div>
+              <ul class="policy-list">
+                ${(scoreCalibration.points || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
+              </ul>
+              ${
+                scoreCalibration.yunnanLines
+                  ? `<div class="small muted mt-10">云南省 2026 年度笔试合格线（总分口径）：</div>
+                     <div class="kv-list mt-6">
+                       ${scoreCalibration.yunnanLines
+                         .map(
+                           (l) => `<div class="kv">
+                             <div class="kv-key" style="width:96px">总分 ${l.total}</div>
+                             <div class="kv-val">${escapeHtml(l.scope)}</div>
+                           </div>`
+                         )
+                         .join('')}
+                     </div>`
+                  : ''
+              }
+              <a class="link-out small" href="${escapeHtml(scoreCalibration.sourceUrl)}" target="_blank" rel="noopener">
+                ${icon('external', { size: 13, className: 'icon icon-sm' })}${escapeHtml(scoreCalibration.sourceName)}
+              </a>
+            </div>`
+          : ''
+      }
+
       <div class="filter-group">
-        <div class="filter-group-title">六、报名窗口内怎么盯</div>
+        <div class="filter-group-title">十、报名窗口内怎么盯</div>
         <ul class="policy-list">
           ${win.trackTips.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
         </ul>
@@ -1002,7 +1375,10 @@ async function openPolicySheet() {
     return;
   }
 
-  const { guokaoScoreLines, guokaoSubjectLine, returneePolicy, hardshipPolicy, provincePolicies, disclaimer } = data;
+  const {
+    guokaoScoreLines, guokaoSubjectLine, yunnanScoreLines, scoreCalibration,
+    rencaiQs200, noRatioExams, returneePolicy, hardshipPolicy, provincePolicies, disclaimer,
+  } = data;
 
   openSheet({
     title: '政策依据',
@@ -1035,6 +1411,33 @@ async function openPolicySheet() {
         <div class="small muted mt-6">国考笔试满分 200（行测 100 + 申论 100）——三档合格线全部低于 120 分，这就是「低于 120 分上岸」的官方依据。</div>
       </div>
 
+      ${
+        yunnanScoreLines
+          ? `<div class="filter-group">
+              <div class="filter-group-title">二·补、云南省考笔试合格分数线（2026 年度 · 总分口径）</div>
+              <div class="kv-list">
+                ${yunnanScoreLines
+                  .map(
+                    (l) => `<div class="kv">
+                      <div class="kv-key" style="width:96px">总分 ${l.total}</div>
+                      <div class="kv-val">${escapeHtml(l.scope)}</div>
+                    </div>`
+                  )
+                  .join('')}
+              </div>
+              <div class="small muted mt-6">云南省考进面排名按行测、申论各 50% 的百分制合成成绩（平均分口径）。展示的「最低进面分 53.35」是该口径，折合总分约 106.7，高于县级合格线 95——不是「200 分只考 53.35」。</div>
+              ${
+                scoreCalibration
+                  ? `<div class="notice notice-info mt-10">${icon('info', { size: 16 })}<div class="grow">${escapeHtml(scoreCalibration.points[3] || '')}</div></div>
+                     <a class="link-out small" href="${escapeHtml(scoreCalibration.sourceUrl)}" target="_blank" rel="noopener">
+                       ${icon('external', { size: 13, className: 'icon icon-sm' })}${escapeHtml(scoreCalibration.sourceName)}
+                     </a>`
+                  : ''
+              }
+            </div>`
+          : ''
+      }
+
       <div class="filter-group">
         <div class="filter-group-title">三、艰苦边远地区倾斜（低分上岸的核心通道）</div>
         <ul class="policy-list">
@@ -1063,8 +1466,53 @@ async function openPolicySheet() {
         <div class="notice notice-info mt-10">${icon('info', { size: 16 })}<div class="grow">${escapeHtml(disclaimer)}</div></div>
       </div>
 
+      ${
+        rencaiQs200
+          ? `<div class="filter-group">
+              <div class="filter-group-title">五、${escapeHtml(rencaiQs200.title)}</div>
+              <div class="notice notice-info">${icon('info', { size: 16 })}<div class="grow">${escapeHtml(rencaiQs200.note)}</div></div>
+              <div class="mt-10">
+                ${(rencaiQs200.regions || [])
+                  .map(
+                    (r) => `<div class="region-card">
+                      <div class="region-name">${escapeHtml(r.region)}</div>
+                      <div class="region-line"><b>对象</b>：${escapeHtml(r.scope)}</div>
+                      <div class="region-line"><b>窗口</b>：${escapeHtml(r.window)}</div>
+                      <div class="region-line"><b>亮点</b>：${escapeHtml(r.feature)}</div>
+                      <a class="link-out tiny" href="${escapeHtml(r.sourceUrl)}" target="_blank" rel="noopener">
+                        ${icon('external', { size: 12, className: 'icon icon-sm' })}${escapeHtml(r.sourceName)}
+                      </a>
+                    </div>`
+                  )
+                  .join('')}
+              </div>
+            </div>`
+          : ''
+      }
+
+      ${
+        noRatioExams
+          ? `<div class="filter-group">
+              <div class="filter-group-title">六、${escapeHtml(noRatioExams.title)}</div>
+              ${(noRatioExams.items || [])
+                .map(
+                  (it) => `<div class="region-card">
+                    <div class="region-name">${escapeHtml(it.name)}</div>
+                    <div class="region-line"><b>开考比例</b>：${escapeHtml(it.ratio)}</div>
+                    <div class="region-line"><b>特点</b>：${escapeHtml(it.feature)}</div>
+                    <div class="region-line"><b>低报名实例</b>：${escapeHtml(it.lowApply)}</div>
+                    <a class="link-out tiny" href="${escapeHtml(it.sourceUrl)}" target="_blank" rel="noopener">
+                      ${icon('external', { size: 12, className: 'icon icon-sm' })}${escapeHtml(it.sourceName)}
+                    </a>
+                  </div>`
+                )
+                .join('')}
+            </div>`
+          : ''
+      }
+
       <div class="filter-group">
-        <div class="filter-group-title">五、留学生专业名称怎么对上 0812</div>
+        <div class="filter-group-title">七、留学生专业名称怎么对上 0812</div>
         <ul class="policy-list">
           <li>留服认证书按境外原名<b>写实性描述</b>，不与国内学科目录做对应认证——专业名对不上是常态，不是个例。</li>
           <li>认证通过后 <b>12 个月内</b>可申请 <b>1 次</b>专业复核，按大陆学科目录最低一级申报（如「人工智能与 XX」→「计算机科学与技术」）。</li>

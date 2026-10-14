@@ -217,6 +217,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 .stat-value.is-urgent { color: var(--danger); }
 .stat-value.is-soon { color: var(--warn); }
 .stat-value.is-ok { color: var(--ok); }
+.stat-value.is-near { color: var(--ok); }
 
 /* ── 徽标 ─────────────────────────────────────────────── */
 .badge {
@@ -453,7 +454,7 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 
 /* 详情页报名数据条 */
 .apply-strip {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 1px;
   background: var(--border); border: 1px solid var(--border);
   border-radius: var(--radius); overflow: hidden;
 }
@@ -757,6 +758,83 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 }
 .kpi-label { font-size: 11.5px; color: var(--text-3); }
 .kpi-value { font-size: 22px; font-weight: 700; font-family: var(--font-num); margin-top: 3px; }
+
+/* ── 准捡漏栏目：报名≈招录 + 无进面比 + 应届进面 + 分数持平 ── */
+.chip-near { font-weight: 650; }
+.chip-near.is-active { background: var(--ok); border-color: var(--ok); color: #fff; }
+.pos-card.is-nearbargain {
+  border: 1.5px solid var(--ok);
+  box-shadow: 0 0 0 3px rgba(14, 124, 107, 0.14), var(--shadow-sm);
+}
+.nearbargain-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 9px; border-radius: 999px;
+  border: 1.5px dashed var(--ok);
+  background: var(--ok-weak); color: var(--ok);
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.badge-near { background: var(--ok); color: #fff; }
+.nearbargain-banner {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 9px 11px; border-radius: var(--radius);
+  background: var(--ok-weak); border: 1px solid var(--ok);
+  color: #0B5E51; font-size: 12px; line-height: 1.6;
+}
+.lowapply-banner {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 9px 11px; border-radius: var(--radius);
+  background: var(--warn-weak); border: 1px solid #E4B577;
+  color: #8A5209; font-size: 12px; line-height: 1.6;
+}
+.pos-tag.is-near { background: var(--ok-weak); color: var(--ok); }
+.pos-tag.is-lowapply { background: var(--warn-weak); color: #8A5209; }
+.pos-tag.is-official { background: var(--primary-weak); color: var(--primary-dark); }
+.pos-tag.is-belowline { background: var(--danger-weak); color: var(--danger); }
+
+/* 附加标记行：无进面比 / 应届进面 / 分数持平，命中亮起、缺失灰显 */
+.bargain-mark-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bargain-mark {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  background: var(--surface-3); color: var(--text-3);
+  border: 1px solid var(--border);
+}
+.bargain-mark.is-on { background: var(--ok-weak); color: var(--ok); border-color: #9ED3CB; }
+.bargain-mark .bargain-mark-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .55;
+}
+.bargain-mark.is-on .bargain-mark-dot { opacity: 1; }
+
+/* 分数口径核验块：口径 + 官方合格线 + 换算比对 */
+.caliber-box {
+  margin-top: 10px; padding: 11px 12px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.caliber-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.caliber-cell { padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
+.caliber-cell .caliber-value { font-size: 17px; font-weight: 700; font-family: var(--font-num); line-height: 1.2; }
+.caliber-cell .caliber-label { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.caliber-cell.is-ok .caliber-value { color: var(--ok); }
+.caliber-cell.is-warn .caliber-value { color: var(--danger); }
+.caliber-foot { margin-top: 8px; font-size: 11.5px; color: var(--text-3); line-height: 1.6; }
+.caliber-foot .num { font-family: var(--font-num); }
+
+/* 人才引进绿色通道 / 低门槛考试清单卡片 */
+.region-card {
+  padding: 11px 12px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.region-card + .region-card { margin-top: 8px; }
+.region-card .region-name { font-size: 13.5px; font-weight: 700; }
+.region-card .region-line { font-size: 12px; color: var(--text-2); line-height: 1.7; margin-top: 5px; }
+.region-card .region-line b { color: var(--text); font-weight: 650; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.mini-tag {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+  background: var(--surface-3); color: var(--text-2);
+}
+.mini-tag.is-hot { background: var(--danger-weak); color: var(--danger); }
+.mini-tag.is-ok { background: var(--ok-weak); color: var(--ok); }
 
 /* ── 工具类 ───────────────────────────────────────────── */
 .hidden { display: none !important; }

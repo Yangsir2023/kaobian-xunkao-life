@@ -23,6 +23,7 @@ import {
   EXAM_TYPE_KEYS,
   RATIO_TYPE_KEYS,
   DEGREE_KEYS,
+  SCORE_BASE_KEYS,
   DATA_LEVEL_KEYS,
   SCORE_BAND_KEYS,
   SORT_KEYS,
@@ -31,14 +32,28 @@ import {
   getRatioType,
   getDataLevel,
   getDegree,
+  getScoreBase,
   matchScoreBand,
   isLowScore,
   evaluateBargain,
+  evaluateNearBargain,
+  isLowApply,
+  effectiveApplicants,
+  applyCountSource,
+  applyDataIssues,
+  lowApplyBasis,
+  APPLY_COUNT_SOURCES,
+  isDegreeFit,
+  toTotalBasis,
   publicCatalogs,
   PROVINCE_POLICIES,
   PROVINCE_POLICY_DISCLAIMER,
   GUOKAO_SCORE_LINES,
   GUOKAO_SUBJECT_LINE,
+  YUNNAN_2026_SCORE_LINES,
+  SCORE_CALIBRATION,
+  RENCAI_QS200_GUIDE,
+  NO_RATIO_EXAMS,
   RETURNEE_POLICY,
   HARDSHIP_POLICY,
 } from '../position-catalog.mjs';
@@ -124,6 +139,18 @@ function assertTimestamp(value, field) {
   return raw;
 }
 
+/** 分数口径校验：total（总分）或 avg100（两科平均/合成百分制） */
+function assertScoreBasis(value) {
+  if (value === undefined || value === null || value === '') return 'total';
+  if (typeof value !== 'string' || !SCORE_BASE_KEYS.includes(value)) {
+    throw fail(CODES.POSITION_INVALID_PARAMS, `scoreBasis 只能是：${SCORE_BASE_KEYS.join(' / ')}`, 400);
+  }
+  return value;
+}
+
+/** 老数据没有 scoreBasis 时的兜底描述 */
+const SCORE_BASE_FALLBACK = { short: '总分', name: '总分口径' };
+
 /** 把文档转成前端契约结构（补上分类配色、分数段标记、可见性） */
 export function shapePosition(doc, { viewer = null } = {}) {
   const track = getMajorTrack(doc.majorTrack);
@@ -131,6 +158,7 @@ export function shapePosition(doc, { viewer = null } = {}) {
   const ratio = getRatioType(doc.ratioType);
   const level = getDataLevel(doc.dataLevel);
   const degree = getDegree(doc.degree);
+  const basis = getScoreBase(doc.scoreBasis) || SCORE_BASE_FALLBACK;
   // 门槛分：优先取显式的 score，其次回落「最低进面分数」——
   // 老数据只有 score，新数据可能只填了三件套，两条路都要能算
   const score = Number.isFinite(doc.score)
@@ -143,6 +171,10 @@ export function shapePosition(doc, { viewer = null } = {}) {
   const scoreAvg = Number.isFinite(doc.scoreAvg) ? doc.scoreAvg : null;
   const total = Number.isFinite(doc.scoreTotal) ? doc.scoreTotal : null;
   const isOwner = Boolean(viewer && doc.ownerId && doc.ownerId === viewer.id);
+  // 官方合格线比对：先把进面分与合格线换到同一口径（avg100 × 2 = total）
+  const officialLine = Number.isFinite(doc.officialScoreLine) ? doc.officialScoreLine : null;
+  const scoreInTotal = toTotalBasis(scoreMin, doc.scoreBasis);
+  const scoreLineGap = scoreInTotal != null && officialLine != null ? Math.round((scoreInTotal - officialLine) * 100) / 100 : null;
   return {
     id: doc.id,
     province: doc.province,
@@ -160,10 +192,24 @@ export function shapePosition(doc, { viewer = null } = {}) {
     majorText: doc.majorText || '',
     degree: doc.degree,
     degreeName: degree?.short || doc.degree,
+    degreeFit: isDegreeFit(doc),
     freshOnly: Boolean(doc.freshOnly),
     ratioType: doc.ratioType,
     ratioTypeName: ratio?.short || doc.ratioType,
     ratioText: doc.ratioText || '',
+    // 准捡漏三条附加标记的原始事实：公告是否明确未达比例也可开考 / 是否有应届生进面 / 分数是否与上年持平
+    ratioFlexible: Boolean(doc.ratioFlexible),
+    freshInterview: Boolean(doc.freshInterview),
+    scoreStable: Boolean(doc.scoreStable),
+    prevScoreMin: Number.isFinite(doc.prevScoreMin) ? doc.prevScoreMin : null,
+    // 分数口径与官方合格线： caliber 声明进面分怎么读，officialScoreLine 是按总分口径的官方门槛
+    scoreBasis: doc.scoreBasis === 'avg100' ? 'avg100' : 'total',
+    scoreBasisName: basis?.short || '总分',
+    officialScoreLine: officialLine,
+    officialScoreLineNote: doc.officialScoreLineNote || '',
+    scoreInTotal,
+    scoreLineGap,
+    belowOfficialLine: scoreLineGap != null && scoreLineGap < 0,
     score,
     scoreMin,
     scoreMax,
@@ -176,6 +222,17 @@ export function shapePosition(doc, { viewer = null } = {}) {
     applicants: Number.isFinite(doc.applicants) ? doc.applicants : null,
     approvedCount: Number.isFinite(doc.approvedCount) ? doc.approvedCount : null,
     paidCount: Number.isFinite(doc.paidCount) ? doc.paidCount : null,
+    planCount: Number.isFinite(doc.planCount) ? doc.planCount : null,
+    effectiveApplicants: effectiveApplicants(doc),
+    applyCountSource: applyCountSource(doc),
+    applyCountSourceName: APPLY_COUNT_SOURCES[applyCountSource(doc)] || null,
+    lowApply: isLowApply(doc),
+    // 低报名的判定依据：公告明确未达比例（ratioShortfall）还是报名规模推算（count）
+    lowApplyBasis: lowApplyBasis(doc),
+    // 公告明确「报名/缴费未达开考比例」被核减或取消——低报名的公告级证据
+    ratioShortfall: Boolean(doc.ratioShortfall),
+    // 报名数据自检：竞争比 / 报名 / 过审 / 缴费互相矛盾时如实标出，UI 打「待核验」
+    dataIssues: applyDataIssues(doc),
     dataSource: doc.dataSource || null,
     dataUpdatedAt: doc.dataUpdatedAt || null,
     dataLevel: doc.dataLevel,
@@ -184,8 +241,10 @@ export function shapePosition(doc, { viewer = null } = {}) {
     dataLevelAccent: level?.accent || '#EEF0F3',
     // 公安政法类（人民警察）职位：留学生政审禁入，录入/导入时显式标记
     policePosition: Boolean(doc.policePosition),
-    // 捡漏五条件判定：hit=true 才值得「圈出来」，conditions 供前端逐条展示 ✓/✗
+    // 捡漏五条件判定：hit=true 才值得「圈出来」，conditions 供前端逐条展示
     bargain: evaluateBargain(doc),
+    // 准捡漏判定：报名≈招录 + 有进面分 + 适合我；marks 标注无进面比/应届进面/分数持平
+    nearBargain: evaluateNearBargain(doc),
     source: doc.source,
     owned: isOwner,
     editable: isOwner || (Boolean(viewer) && roleAtLeast(viewer.role, ROLES.ADMIN)),
@@ -219,13 +278,28 @@ function pickWritable(body) {
   if (body.freshOnly !== undefined) patch.freshOnly = Boolean(body.freshOnly);
   if (body.ratioType !== undefined) patch.ratioType = assertRatioType(body.ratioType);
   if (body.ratioText !== undefined) patch.ratioText = String(body.ratioText || '').slice(0, 300);
+  // 未达开考比例也可开考 / 不递减指标（如重庆三支一扶医疗卫生岗）：准捡漏「无进面比」标记的依据
+  if (body.ratioFlexible !== undefined) patch.ratioFlexible = Boolean(body.ratioFlexible);
+  // 公告明确未达开考比例被核减/取消：低报名的公告级证据
+  if (body.ratioShortfall !== undefined) patch.ratioShortfall = Boolean(body.ratioShortfall);
   // 公安政法类（人民警察）职位标记：捡漏五条件里「留学生政审安全」的判定依据
   if (body.policePosition !== undefined) patch.policePosition = Boolean(body.policePosition);
+  // 有应届生进面：准捡漏「应届进面」标记的依据
+  if (body.freshInterview !== undefined) patch.freshInterview = Boolean(body.freshInterview);
+  // 招录人数：准捡漏「报名≈招录」的判定基数
+  if (body.planCount !== undefined) patch.planCount = assertCount(body.planCount, 'planCount');
   if (body.score !== undefined) patch.score = assertScore(body.score);
   if (body.scoreMin !== undefined) patch.scoreMin = assertScore(body.scoreMin, 'scoreMin');
   if (body.scoreMax !== undefined) patch.scoreMax = assertScore(body.scoreMax, 'scoreMax');
   if (body.scoreAvg !== undefined) patch.scoreAvg = assertScore(body.scoreAvg, 'scoreAvg');
   if (body.scoreTotal !== undefined) patch.scoreTotal = assertScore(body.scoreTotal, 'scoreTotal');
+  // 分数口径 + 官方合格线：避免「200 分考 53.35」类口径误读，低于合格线自动标记待核验
+  if (body.scoreBasis !== undefined) patch.scoreBasis = assertScoreBasis(body.scoreBasis);
+  if (body.officialScoreLine !== undefined) patch.officialScoreLine = assertScore(body.officialScoreLine, 'officialScoreLine');
+  if (body.officialScoreLineNote !== undefined) patch.officialScoreLineNote = String(body.officialScoreLineNote || '').slice(0, 120);
+  // 分数与上年持平：录入时对照上年数据勾选
+  if (body.scoreStable !== undefined) patch.scoreStable = Boolean(body.scoreStable);
+  if (body.prevScoreMin !== undefined) patch.prevScoreMin = assertScore(body.prevScoreMin, 'prevScoreMin');
   if (body.competition !== undefined) patch.competition = assertCompetition(body.competition);
   if (body.applicants !== undefined) patch.applicants = assertCount(body.applicants, 'applicants');
   if (body.approvedCount !== undefined) patch.approvedCount = assertCount(body.approvedCount, 'approvedCount');
@@ -264,6 +338,10 @@ export function registerPositionRoutes(router) {
     ok({
       guokaoScoreLines: GUOKAO_SCORE_LINES,
       guokaoSubjectLine: GUOKAO_SUBJECT_LINE,
+      yunnanScoreLines: YUNNAN_2026_SCORE_LINES,
+      scoreCalibration: SCORE_CALIBRATION,
+      rencaiQs200: RENCAI_QS200_GUIDE,
+      noRatioExams: NO_RATIO_EXAMS,
       returneePolicy: RETURNEE_POLICY,
       hardshipPolicy: HARDSHIP_POLICY,
       provincePolicies: PROVINCE_POLICIES,
@@ -304,6 +382,20 @@ export function registerPositionRoutes(router) {
     if (bargainRaw === 'true' || bargainRaw === '1') bargain = true;
     else if (bargainRaw === 'false' || bargainRaw === '0') bargain = false;
     else if (bargainRaw) throw fail(CODES.POSITION_INVALID_PARAMS, 'bargain 只能是 true / false', 400);
+
+    // 准捡漏专区：报名≈招录 + 有进面分 + 适合我（命中行 + 低竞争候选行都返回，前端分区展示）
+    const nearRaw = ctx.query.get('nearBargain');
+    let nearBargain = null;
+    if (nearRaw === 'true' || nearRaw === '1') nearBargain = true;
+    else if (nearRaw === 'false' || nearRaw === '0') nearBargain = false;
+    else if (nearRaw) throw fail(CODES.POSITION_INVALID_PARAMS, 'nearBargain 只能是 true / false', 400);
+
+    // 低报名专区：有效报名人数不超过招录人数 1.5 倍（或仅多两三个人）
+    const lowApplyRaw = ctx.query.get('lowApply');
+    let lowApply = null;
+    if (lowApplyRaw === 'true' || lowApplyRaw === '1') lowApply = true;
+    else if (lowApplyRaw === 'false' || lowApplyRaw === '0') lowApply = false;
+    else if (lowApplyRaw) throw fail(CODES.POSITION_INVALID_PARAMS, 'lowApply 只能是 true / false', 400);
 
     // 分数段支持多选（逗号分隔），命中任一口径即算低分上岸
     const bandParam = ctx.query.get('band');
@@ -350,6 +442,12 @@ export function registerPositionRoutes(router) {
     if (bargain === true) {
       shaped = shaped.filter((row) => row.bargain.hit);
     }
+    if (nearBargain === true) {
+      shaped = shaped.filter((row) => row.nearBargain.hit || row.nearBargain.partial);
+    }
+    if (lowApply === true) {
+      shaped = shaped.filter((row) => row.lowApply);
+    }
 
     const stats = {
       total: shaped.length,
@@ -360,7 +458,10 @@ export function registerPositionRoutes(router) {
       withScore: shaped.filter((row) => row.score != null).length,
       thirdparty: shaped.filter((row) => row.dataLevel === 'thirdparty').length,
       zeroApply: shaped.filter((row) => row.applicants === 0).length,
+      lowApply: shaped.filter((row) => row.lowApply).length,
       bargain: shaped.filter((row) => row.bargain.hit).length,
+      nearBargain: shaped.filter((row) => row.nearBargain.hit).length,
+      nearPartial: shaped.filter((row) => row.nearBargain.partial && !row.nearBargain.hit).length,
     };
 
     if (sort === 'score_desc') shaped.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
@@ -371,7 +472,7 @@ export function registerPositionRoutes(router) {
     return ok({
       count: shaped.length,
       stats,
-      filters: { provinces, examType, majorTrack, ratioType, degree, freshOnly, bands, maxScore, q, sort, bargain },
+      filters: { provinces, examType, majorTrack, ratioType, degree, freshOnly, bands, maxScore, q, sort, bargain, nearBargain, lowApply },
       positions: page,
       page: { limit, offset, hasMore: offset + limit < shaped.length },
     });
@@ -422,12 +523,21 @@ export function registerPositionRoutes(router) {
       freshOnly: Boolean(body.freshOnly),
       ratioType: assertRatioType(body.ratioType),
       ratioText: String(body.ratioText || '').slice(0, 300),
+      ratioFlexible: Boolean(body.ratioFlexible),
+      ratioShortfall: Boolean(body.ratioShortfall),
       policePosition: Boolean(body.policePosition),
+      freshInterview: Boolean(body.freshInterview),
+      planCount: assertCount(body.planCount, 'planCount'),
       score: assertScore(body.score),
       scoreMin: assertScore(body.scoreMin, 'scoreMin'),
       scoreMax: assertScore(body.scoreMax, 'scoreMax'),
       scoreAvg: assertScore(body.scoreAvg, 'scoreAvg'),
       scoreTotal: assertScore(body.scoreTotal, 'scoreTotal') ?? 200,
+      scoreBasis: assertScoreBasis(body.scoreBasis),
+      officialScoreLine: assertScore(body.officialScoreLine, 'officialScoreLine'),
+      officialScoreLineNote: String(body.officialScoreLineNote || '').slice(0, 120),
+      scoreStable: Boolean(body.scoreStable),
+      prevScoreMin: assertScore(body.prevScoreMin, 'prevScoreMin'),
       scoreNote: String(body.scoreNote || '').slice(0, 120),
       competition: assertCompetition(body.competition),
       applicants: assertCount(body.applicants, 'applicants'),
@@ -548,11 +658,20 @@ export function registerPositionRoutes(router) {
         ratioType: assertRatioType(item.ratioType),
         ratioText: String(item.ratioText || '').slice(0, 300),
         policePosition: Boolean(item.policePosition),
+        ratioFlexible: Boolean(item.ratioFlexible),
+        ratioShortfall: Boolean(item.ratioShortfall),
+        freshInterview: Boolean(item.freshInterview),
+        planCount: assertCount(item.planCount, 'planCount'),
           score: assertScore(item.score),
           scoreMin: assertScore(item.scoreMin, 'scoreMin'),
           scoreMax: assertScore(item.scoreMax, 'scoreMax'),
           scoreAvg: assertScore(item.scoreAvg, 'scoreAvg'),
           scoreTotal: assertScore(item.scoreTotal, 'scoreTotal') ?? 200,
+          scoreBasis: assertScoreBasis(item.scoreBasis),
+          officialScoreLine: assertScore(item.officialScoreLine, 'officialScoreLine'),
+          officialScoreLineNote: String(item.officialScoreLineNote || '').slice(0, 120),
+          scoreStable: Boolean(item.scoreStable),
+          prevScoreMin: assertScore(item.prevScoreMin, 'prevScoreMin'),
           scoreNote: String(item.scoreNote || '').slice(0, 120),
           competition: assertCompetition(item.competition),
           applicants: assertCount(item.applicants, 'applicants'),
@@ -600,7 +719,9 @@ export function registerPositionRoutes(router) {
       csTrack: shaped.filter((row) => row.majorTrack === 'cs0812' || row.majorTrack === 'both').length,
       masterAny: shaped.filter((row) => row.majorTrack === 'master_any' || row.majorTrack === 'both').length,
       zeroApply: shaped.filter((row) => row.applicants === 0).length,
+      lowApply: shaped.filter((row) => row.lowApply).length,
       bargain: shaped.filter((row) => row.bargain.hit).length,
+      nearBargain: shaped.filter((row) => row.nearBargain.hit).length,
       seedCount: SEED_POSITIONS.length,
       provinces: Object.entries(byProvince)
         .map(([province, count]) => ({ province, count }))

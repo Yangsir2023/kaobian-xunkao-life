@@ -37,6 +37,7 @@ const state = {
   query: '',
   rows: [],
   scope: 'official',
+  userScope: 'mine',
   stats: null,
 };
 
@@ -62,7 +63,7 @@ export default {
   },
 
   async render() {
-    state.scope = session.isAuthenticated ? 'mine' : 'official';
+    state.scope = session.isAuthenticated ? state.userScope : 'official';
     const data = await api.reminders({ scope: state.scope, sort: state.sort });
     state.rows = data.reminders;
     state.stats = data.stats;
@@ -78,16 +79,26 @@ export default {
 
 function shellHtml() {
   const authed = session.isAuthenticated;
+  const official = state.scope === 'official';
   return `
     ${authed ? statStripHtml() : guestBannerHtml()}
+    ${authed ? scopeToggleHtml() : ''}
     ${quickFilterHtml()}
     <div class="section-head">
-      <h2 class="section-title">${authed ? '我的提醒' : '近期公共招考节点'}</h2>
+      <h2 class="section-title">${official ? '近期公共招考节点' : '我的提醒'}</h2>
       <button class="section-link" id="open-sort">${sortLabel()}${icon('chevronDown', { size: 13, className: 'icon icon-sm' })}</button>
     </div>
     <div id="reminder-list">${listHtml()}</div>
-    ${authed ? '' : officialFooterHtml()}
+    ${official ? officialFooterHtml() : ''}
   `;
+}
+
+/** 登录用户可在「我的提醒」与「公共招考节点（国考/省考/事业编/选调/军队文职/三支一扶/人才引进/西部计划…）」之间切换 */
+function scopeToggleHtml() {
+  return `<div class="chip-scroll" id="scope-toggle">
+    <button class="chip ${state.scope === 'mine' ? 'is-active' : ''}" data-scope="mine">我的提醒</button>
+    <button class="chip ${state.scope === 'official' ? 'is-active' : ''}" data-scope="official">公共招考节点 · 我能考的</button>
+  </div>`;
 }
 
 function statStripHtml() {
@@ -150,19 +161,19 @@ function listHtml() {
     if (state.filter !== 'all') {
       return emptyState({ iconName: 'filter', title: '该筛选下暂无提醒', desc: '换个筛选条件看看，或者新增一条提醒。' });
     }
-    return session.isAuthenticated
+    return session.isAuthenticated && state.scope !== 'official'
       ? emptyState({
           iconName: 'bell',
           title: '还没有提醒',
-          desc: '把国考、省考、事业编等关键节点加进来，截止前会自动显示倒计时。',
+          desc: '把国考、省考、事业编等关键节点加进来，截止前会自动显示倒计时；也可切到「公共招考节点」看官方公告导入的节点并一键加入。',
           actionLabel: '新增第一条提醒',
           actionId: 'empty-add',
         })
       : emptyState({
           iconName: 'bell',
           title: '暂无临近的公共节点',
-          desc: '登录后可创建自己的提醒，倒计时会实时更新。',
-          actionLabel: '登录后创建',
+          desc: session.isAuthenticated ? '公共节点来自官方公告导入，已覆盖国考/省考/事业编/选调/军队文职/三支一扶/社区工作者/人才引进/西部计划。' : '登录后可创建自己的提醒，倒计时会实时更新。',
+          actionLabel: session.isAuthenticated ? '新增我自己的提醒' : '登录后创建',
           actionId: 'empty-add',
         });
   }
@@ -240,6 +251,22 @@ function cardHtml(row) {
 /* ───────────────── 交互 ───────────────── */
 
 function bind(root) {
+  root.querySelectorAll('[data-scope]').forEach((chip) => {
+    chip.addEventListener('click', async () => {
+      state.userScope = chip.dataset.scope;
+      state.scope = session.isAuthenticated ? state.userScope : 'official';
+      state.filter = 'all';
+      const data = await api.reminders({ scope: state.scope, sort: state.sort });
+      state.rows = data.reminders;
+      state.stats = data.stats;
+      const main = document.getElementById('app-main');
+      if (main) {
+        main.innerHTML = shellHtml();
+        bind(main);
+      }
+    });
+  });
+
   root.querySelectorAll('.rem-card').forEach((card) => {
     card.addEventListener('click', () => {
       window.location.hash = `/reminders/${card.dataset.id}`;

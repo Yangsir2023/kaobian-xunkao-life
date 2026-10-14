@@ -78,6 +78,8 @@ export const EXAM_TYPES = [
   { key: 'xuandiao', name: '选调生', short: '选调', color: '#B8791A', accent: '#FBF3E4' },
   { key: 'jundui', name: '军队文职', short: '军队文职', color: '#2C6E49', accent: '#EAF4EE' },
   { key: 'sanzhiyifu', name: '三支一扶', short: '三支一扶', color: '#0F7BB5', accent: '#E8F3FA' },
+  { key: 'rencai', name: '人才引进', short: '人才引进', color: '#C2410C', accent: '#FFF0E6' },
+  { key: 'shequ', name: '社区工作者', short: '社区工作者', color: '#7A4FD1', accent: '#F1ECFC' },
 ];
 
 export const EXAM_TYPE_MAP = new Map(EXAM_TYPES.map((t) => [t.key, t]));
@@ -118,6 +120,37 @@ export const DEGREES = [
 
 export const DEGREE_MAP = new Map(DEGREES.map((d) => [d.key, d]));
 export const DEGREE_KEYS = DEGREES.map((d) => d.key);
+
+/**
+ * 进面分数口径——「200 分考 53.35」类误读的根源，录入与展示必须显式声明。
+ * total   总分口径：行测 + 申论直接相加（国考最低面试分数、多数省份省考按此公布）
+ * avg100  两科平均口径：行测、申论各按 50% 折算的百分制合成成绩（云南省考按此口径排名与公布）
+ * 换算关系：avg100 × 2 = total。官方合格线一律按总分口径划定，比对前先换口径。
+ */
+export const SCORE_BASES = [
+  {
+    key: 'total',
+    name: '总分口径',
+    short: '总分',
+    hint: '行测 + 申论直接相加（满分 200）；国考最低面试分数、多数省份按此公布',
+  },
+  {
+    key: 'avg100',
+    name: '两科平均口径',
+    short: '平均分',
+    hint: '行测、申论各占 50% 折算的百分制合成成绩；云南省考进面排名与公考雷达展示多用此口径',
+  },
+];
+
+export const SCORE_BASE_MAP = new Map(SCORE_BASES.map((b) => [b.key, b]));
+export const SCORE_BASE_KEYS = SCORE_BASES.map((b) => b.key);
+
+/** avg100 → total 的口径换算（合格线比对用） */
+export function toTotalBasis(score, basis) {
+  if (!Number.isFinite(score)) return null;
+  if (basis === 'avg100') return Math.round(score * 2 * 100) / 100;
+  return score;
+}
 
 /** 数据可信度分级：UI 必须把 sample 明示出来，绝不让示例数据伪装成真实岗位 */
 export const DATA_LEVELS = [
@@ -240,6 +273,190 @@ export function evaluateBargain(doc) {
   return { hit: conditions.every((c) => c.ok), conditions };
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   准捡漏档：报名≈招录 + 有进面分 + 适合我（marks 标注进面比/应届/分数持平）
+   ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * 准捡漏五条件——「报名人数跟岗位相同或只多一点点」的低竞争岗位：
+ *   lowApply      报名人数不超过招录人数 1.5 倍（或仅多两三个人）
+ *   hasScore      跟之前一样展示最低/最高/平均进面分，门槛可核验
+ *   trackOk       专业可报：0812 / 硕士不限 / 双通道
+ *   degreeFit     学历可报：硕士、本科或不限学历（硕士对本科岗是降维兼容）
+ *   returneeSafe  留学生政审安全：非公安政法类职位
+ *
+ * 「没有进面比（没有就标记一下）」「有进面的应届生」「分数与上年持平」
+ * 不作为淘汰条件，而是 marks——命中即在卡片上打标签，缺失时在核对清单里可见。
+ */
+export const NEAR_BARGAIN_CONDITIONS = [
+  { key: 'lowApply', label: '报名≈招录 / 未达比例', hint: '报名人数不超过招录人数的 1.5 倍（或仅多两三个人）；公告明确「报名/缴费未达开考比例」被核减或取消的岗位同样算——报名人数缺失时按「竞争比 × 招录人数 → 过审 → 缴费」顺序退用，口径会标出来' },
+  { key: 'hasScore', label: '有进面分数', hint: '跟之前一样展示最低/最高/平均进面分，能核验要迈过的门槛' },
+  { key: 'trackOk', label: '专业可报', hint: '计算机科学与技术（0812）或硕士不限专业' },
+  { key: 'degreeFit', label: '学历可报', hint: '岗位要求硕士、本科或不限学历——硕士学历全覆盖（三支一扶/社区多要求本科即可）' },
+  { key: 'returneeSafe', label: '留学生政审安全', hint: '非公安政法类职位——该类职位含六个月以上境外经历禁入条款' },
+];
+
+/** 准捡漏附加标记：不淘汰，只标注（「没有就标记一下」） */
+export const NEAR_BARGAIN_MARKS = [
+  { key: 'noRatio', label: '无进面比', hint: '不设开考/进面比例，或公告明确未达比例也可开考、不递减指标' },
+  { key: 'freshOk', label: '应届进面', hint: '仅限应届高校毕业生，或有应届生进面的记录' },
+  { key: 'scoreStable', label: '分数持平', hint: '进面分与上年基本持平（录入时对照上年数据勾选，波动大可警惕）' },
+];
+
+/** 报名人数口径：告诉 UI 这个数字是从哪个字段来的，避免「缴费人数」被当成「报名人数」 */
+export const APPLY_COUNT_SOURCES = {
+  applicants: '报名人数',
+  competition: '竞争比 × 招录人数',
+  approved: '过审人数',
+  paid: '缴费人数',
+};
+
+/**
+ * 有效报名人数：口径优先级 = 报名人数 → 竞争比 × 招录人数 → 过审人数 → 缴费人数。
+ *
+ * 为什么把「报名人数」放第一：用户判定「报名≈招录」时看的就是报名人数；
+ * 竞争比是官方/平台直接给的比值，比缴费人数更接近报名规模（缴费只说明谁真去考了）；
+ * 只有在报名人数与竞争比都没有时才退用缴费，且 UI 会标出口径。
+ */
+export function effectiveApplicants(doc) {
+  if (Number.isFinite(doc.applicants)) return doc.applicants;
+  if (Number.isFinite(doc.competition) && Number.isFinite(doc.planCount) && doc.planCount > 0) {
+    return Math.round(doc.competition * doc.planCount);
+  }
+  if (Number.isFinite(doc.approvedCount)) return doc.approvedCount;
+  if (Number.isFinite(doc.paidCount)) return doc.paidCount;
+  return null;
+}
+
+/** 报名人数取自哪个字段（UI 显式标注，避免口径误读） */
+export function applyCountSource(doc) {
+  if (Number.isFinite(doc.applicants)) return 'applicants';
+  if (Number.isFinite(doc.competition) && Number.isFinite(doc.planCount) && doc.planCount > 0) return 'competition';
+  if (Number.isFinite(doc.approvedCount)) return 'approved';
+  if (Number.isFinite(doc.paidCount)) return 'paid';
+  return null;
+}
+
+/**
+ * 报名数据一致性自检：同一行里几个数字互相矛盾时如实标出来，
+ * 不让「竞争比 39:1」和「缴费人数 4」并列却都当成事实展示。
+ * 返回人类可读的问题清单，UI 打「报名数据待核验」并逐条列出。
+ */
+export function applyDataIssues(doc) {
+  const issues = [];
+  const { applicants, approvedCount, paidCount, competition, planCount } = doc;
+
+  if (Number.isFinite(competition) && Number.isFinite(planCount) && planCount > 0) {
+    const implied = Math.round(competition * planCount);
+    if (Number.isFinite(applicants) && Math.abs(implied - applicants) > Math.max(1, applicants * 0.2)) {
+      issues.push(`竞争比 ${competition}:1 × 招录 ${planCount} 人 ≈ 报名 ${implied} 人，与录入的报名人数 ${applicants} 不一致`);
+    }
+    if (!Number.isFinite(applicants) && Number.isFinite(paidCount)) {
+      if (paidCount > implied) {
+        issues.push(`缴费人数 ${paidCount} 大于竞争比隐含的报名人数 ${implied}`);
+      } else if (implied > 0 && paidCount < implied * 0.5) {
+        // 缴费率异常偏低（报名后大半没缴费）——大概率是「竞争比」或「缴费人数」抄错了列
+        issues.push(
+          `竞争比 ${competition}:1 隐含报名约 ${implied} 人，但缴费仅 ${paidCount} 人（缴费率 ${Math.round((paidCount / implied) * 100)}%，异常偏低），两列数据可能错位`
+        );
+      }
+    }
+  }
+  if (Number.isFinite(applicants) && Number.isFinite(approvedCount) && approvedCount > applicants) {
+    issues.push(`过审人数 ${approvedCount} 大于报名人数 ${applicants}`);
+  }
+  if (Number.isFinite(approvedCount) && Number.isFinite(paidCount) && paidCount > approvedCount) {
+    issues.push(`缴费人数 ${paidCount} 大于过审人数 ${approvedCount}`);
+  }
+  if (Number.isFinite(competition) && !Number.isFinite(planCount)) {
+    issues.push('录入了竞争比但缺招录人数，无法回算报名规模');
+  }
+  return issues;
+}
+
+/**
+ * 低报名判定（保守口径）：
+ *   1) 公告明确「报名/缴费人数未达开考比例」而被核减或取消（ratioShortfall）——这是最硬的证据，
+ *      比任何推算数字都直接，直接算低报名；
+ *   2) 否则看报名规模：不超过「招录人数 × 1.5」与「招录人数 + 3」的较大者。
+ *      例：招 1 人 → 报名 ≤4；招 2 人 → ≤5；招 10 人 → ≤15。
+ *
+ * 关键：**只要行内任何一个可得的人数口径超出上限，就不算低报名**。
+ * 例如某行同时记着「竞争比 39:1」和「缴费人数 4」——两个数字互相矛盾，
+ * 这时宁可判否并在 UI 标「报名数据待核验」，也不拿小的那个去宣称「报名≈招录」。
+ */
+export function isLowApply(doc) {
+  if (doc.ratioShortfall === true) return true;
+  const plan = Number.isFinite(doc.planCount) ? doc.planCount : null;
+  if (!plan || plan < 1) return false;
+  const limit = Math.max(plan * 1.5, plan + 3);
+  const counts = applicantCounts(doc);
+  if (!counts.length) return false;
+  return counts.every((n) => n <= limit);
+}
+
+/** 低报名的判定依据：报名规模推算（count）优先，只有规模推不出来时才归为公告口径 */
+export function lowApplyBasis(doc) {
+  if (!isLowApply(doc)) return null;
+  const plan = Number.isFinite(doc.planCount) ? doc.planCount : null;
+  if (plan && plan >= 1) {
+    const limit = Math.max(plan * 1.5, plan + 3);
+    const counts = applicantCounts(doc);
+    if (counts.length && counts.every((n) => n <= limit)) return 'count';
+  }
+  return 'ratioShortfall';
+}
+
+/** 行内所有可得的报名规模口径（去重），用于一致性自检与保守判定 */
+export function applicantCounts(doc) {
+  const plan = Number.isFinite(doc.planCount) ? doc.planCount : null;
+  const list = [];
+  if (Number.isFinite(doc.applicants)) list.push(doc.applicants);
+  if (Number.isFinite(doc.competition) && plan > 0) list.push(Math.round(doc.competition * plan));
+  if (Number.isFinite(doc.approvedCount)) list.push(doc.approvedCount);
+  if (Number.isFinite(doc.paidCount)) list.push(doc.paidCount);
+  return [...new Set(list)];
+}
+
+/** 硕士学历是否满足岗位学历要求（本科岗对硕士是降维兼容） */
+export function isDegreeFit(doc) {
+  return ['master', 'bachelor', 'any'].includes(doc.degree);
+}
+
+export function matchNearBargainCondition(key, doc) {
+  if (key === 'lowApply') return isLowApply(doc);
+  if (key === 'hasScore') return Number.isFinite(doc.scoreMin) || Number.isFinite(doc.score);
+  if (key === 'trackOk') return ['cs0812', 'master_any', 'both'].includes(doc.majorTrack);
+  if (key === 'degreeFit') return isDegreeFit(doc);
+  if (key === 'returneeSafe') return !doc.policePosition;
+  return false;
+}
+
+export function matchNearBargainMark(key, doc) {
+  if (key === 'noRatio') return doc.ratioType === 'none' || doc.ratioFlexible === true;
+  if (key === 'freshOk') return doc.freshOnly === true || doc.freshInterview === true;
+  if (key === 'scoreStable') return doc.scoreStable === true;
+  return false;
+}
+
+/**
+ * 准捡漏判定：五条件全中才算 hit。
+ *
+ * partial = 「低竞争 + 学历可报 + 政审安全」三条成立——这三条是**结构性**的
+ * （报名少、硕士学历够、不是公安政法类），只剩「专业通道」需要逐条核对官方岗位表。
+ * 这类岗位照样值得盯：专业要求往往是「不限专业」而岗位表没写全，录进来核对即可。
+ */
+export function evaluateNearBargain(doc) {
+  const conditions = NEAR_BARGAIN_CONDITIONS.map((c) => ({ ...c, ok: matchNearBargainCondition(c.key, doc) }));
+  const marks = NEAR_BARGAIN_MARKS.map((m) => ({ ...m, ok: matchNearBargainMark(m.key, doc) }));
+  const hit = conditions.every((c) => c.ok);
+  const partial =
+    isLowApply(doc) &&
+    matchNearBargainCondition('degreeFit', doc) &&
+    matchNearBargainCondition('returneeSafe', doc);
+  return { hit, partial, conditions, marks };
+}
+
 /**
  * 留学生政审红线：公安政法类职位（人民警察）。
  * 依据一：《公安机关录用人民警察政治考察工作办法》（公通字〔2020〕11号），
@@ -312,15 +529,152 @@ export const GUOKAO_2026_ZERO_TIP = {
   sourceName: '中公教育 · 2026 国考报名数据统计（89 个职位挂零）',
 };
 
+/**
+ * 云南省 2026 年度笔试合格分数线（云南省公务员局 / 云南省人社厅 2026-04-10 公布，已核对原文）。
+ * 口径：非公安职位按行测 + 申论「两科成绩总分」划定（满分 200）；进面排名按合成成绩百分制折算。
+ */
+export const YUNNAN_2026_SCORE_LINES = [
+  { scope: '省级机关职位', total: 110 },
+  { scope: '州（市）级机关职位', total: 105 },
+  { scope: '县（市、区）级机关职位', total: 95 },
+  { scope: '乡镇（街道）职位 · 非艰苦边远地区', total: 90 },
+  { scope: '乡镇（街道）职位 · 艰苦边远地区', total: 85 },
+  { scope: '行政执法类职位、省属监狱系统基层单位职位', total: 100 },
+  { scope: '公安机关人民警察职位（行测 + 申论 + 公安专业科目三科总分）', total: 145 },
+];
+
+/**
+ * 进面分数线口径校准——「200 分考 53.35，27% 正确率」是口径误读，不是数据造假。
+ * 已核对：云南省 2026 年度合格线公告（云岭先锋网）、2024 与 2026 年度国考合格线（国家公务员局）。
+ */
+export const SCORE_CALIBRATION = {
+  title: '进面分数线口径校准：53.35 不是「200 分拿 53.35」',
+  points: [
+    '云南省考笔试满分 200 = 行测 100 + 申论 100。官方按两科总分划定合格线：省级 110 / 州市级 105 / 县级 95 / 乡镇 90（艰苦边远 85）/ 行政执法与省属监狱 100 / 公安 145（2026 年度）。',
+    '云南省考进面排名按「笔试合成成绩」——行测、申论各占 50%，折算百分制。公考雷达等平台展示的「最低进面分 53.35」正是这个合成成绩口径，被标成「满分 200」属于口径错位。',
+    '换算：合成成绩 × 2 = 总分。53.35 分折合总分 106.7，高于县级合格线 95；换到合成口径，县级合格线是 47.5，53.35 高出 5.85 分——数据自洽，这个分数是真的。',
+    '「笔试约需 27% 的正确率」因此是误读：53.35/100 的含意是两科平均 53.35 分（单科约五成三得分率），不是 200 分里只拿 53.35。行测客观题约对一半多一点，申论按点给分，远程县乡低竞争岗位完全可能出现。',
+    '国考同口径：最低面试分数按总分（行测 + 申论）公布；西部地区和艰苦边远地区职位合格线为总分 90、行测 45（2024、2026 年度均为该口径，国家公务员局公布）。',
+    '本应用的做法：每个岗位显式记录「分数口径 + 官方合格线」，展示时自动换算比对，进面分低于合格线时标记「数据待核验」——不再出现口径错位造成的误判。',
+  ],
+  yunnanLines: YUNNAN_2026_SCORE_LINES,
+  sourceUrl: 'https://ylxf.1237125.cn/TopicWeb/ynskslygwy/index.html',
+  sourceName: '云岭先锋网 · 云南省 2026 年度考试录用公务员笔试合格分数线公告（2026-04-10）',
+};
+
+/**
+ * 人才引进绿色通道：QS 前 200 硕士 + 普通本科的正确打开方式。
+ * 已逐条核对官方公告原文——这些通道只卡「硕士院校排名」，不要求本科 985/211。
+ */
+export const RENCAI_QS200_GUIDE = {
+  title: '人才引进：QS 前 200 硕士的绿色通道（不看本科层次）',
+  note:
+    '下列公告的共同点：引进对象只要求「国（境）外 QS/THE/ARWU/U.S.News 前 200（或 500）高校全日制硕士及以上」，排除的仅是专升本、成人教育、网络教育、委培定向——普通本科 + QS 前 200 硕士正好全部符合。留学生按公告时限完成留服认证即可。',
+  regions: [
+    {
+      region: '甘肃 · 定西市（第二批，报名正在进行）',
+      scope: '市直岗位：2026 QS 前 200 院校硕士及以上；县区岗位：QS 前 500 院校硕士及以上',
+      window: '报名 2026-10-13 08:30 至 10-27 18:00；初审 10-14 至 10-28；未通过可改报至 10-29 12:00',
+      feature: '306 个岗位 360 人（事业编 272 岗 307 人含带编入企 20 人）；报名:计划 ≤15:1 免笔试直接面试；面试 80 分合格；博士单列考核一事一议',
+      sourceUrl: 'https://zk.xnrczpw.com/nindex/?ecode=dxrcyj',
+      sourceName: '定西市 2026 年度第二批人才引进公告（2026-10-10 发布）',
+    },
+    {
+      region: '湖北 · 十堰丹江口市',
+      scope: '综合类：双一流建设高校或 QS2026 前 200 高校全日制硕士及以上；卫生类：全日制硕士及以上',
+      window: '2026 年度引进 20 名，以当年公告时间为准',
+      feature: '入职即解决非参公事业编制；年龄 30 周岁及以下（博士 35）',
+      sourceUrl: 'https://www.syrsks.cn/index/index/newsview/category_id/1/id/345.html',
+      sourceName: '丹江口市 2026 年公开引进高层次人才公告',
+    },
+    {
+      region: '浙江 · 温州市（市级）',
+      scope: 'ARWU / THE / QS / U.S.News 最新一期前 200 位高校硕士研究生',
+      window: '2026 年度招引，以当年公告时间为准',
+      feature: '31 家事业单位 213 人 + 34 家知名企业 232 人；境外学历须 2027-01-31 前取得留服认证书',
+      sourceUrl: 'https://hrss.wenzhou.gov.cn/col/col1229204115/art/2026/art_81914374e8644e59ba8e700f0dac974f.html',
+      sourceName: '2026 年温州市市级事业单位和知名企业公开招引优秀硕博人才公告',
+    },
+    {
+      region: '湖北 · 咸宁崇阳县（第二批）',
+      scope: '国内普通高校或 QS 前 200 世界大学全日制硕士及以上；或双一流高校全日制本科',
+      window: '2026 年第二批，以当年公告时间为准',
+      feature: '5 家事业单位 28 名；年龄 35 周岁以下',
+      sourceUrl: 'http://www.chongyang.gov.cn/xxgk/dfbmptlj/bmxxgkpt/jtj_19091/fdzdgknr_20017/zkly_32130/202607/t20260711_5026528.shtml',
+      sourceName: '湖北省崇阳县 2026 年人才引进（第二批）公告',
+    },
+    {
+      region: '湖北 · 荆州监利市',
+      scope: '国内全日制普通高等教育硕士及以上，或国（境）外 QS 前 200 世界大学同等学历',
+      window: '2026 年度 64 个计划，以当年公告时间为准',
+      feature: '纳入事业编制；境外毕业生须 2026-08-01 前取得留服认证书',
+      sourceUrl: 'http://zwgk.jianli.gov.cn/jlsswj/12037/101220263/t123220263014/666013.shtml',
+      sourceName: '监利市 2026 年事业单位人才引进公告',
+    },
+  ],
+  tips: [
+    '人才引进多数不设开考比例、免笔试直接面试——对「分数卷不赢」的人是结构性利好；定西这类 ≤15:1 免笔试的岗位，报名即拿到面试资格。',
+    '专业是最大变量：综合类岗位按岗位表逐条核对专业，计算机类多在「信息技术/综合管理」岗出现；投递前把留服认证 + 专业复核材料备齐。',
+    '服务期与违约条款写进协议，报名前看清最低服务年限（人才引进常见 3-5 年）。',
+  ],
+};
+
+/**
+ * 不设开考比例 / 低门槛考试清单——三支一扶、社区工作者、西部计划、人才引进。
+ * 全部来自 2026 年度官方公告原文，逐条附来源。
+ */
+export const NO_RATIO_EXAMS = {
+  title: '不设开考比例 / 低门槛考试：三支一扶 · 社区工作者 · 西部计划 · 人才引进',
+  items: [
+    {
+      name: '三支一扶',
+      ratio: '多数省份设 2:1~3:1 笔试开考比例，未达即核减取消；重庆 2026 明确「医疗卫生岗位未达开考比例可开考且不递减指标」',
+      feature: '服务期 2 年，期满考核合格享定向招录、考研加分等政策；河南 2026 报名不收报名费',
+      lowApply: '湖南邵阳城步县卫生院支医岗报名 0 人取消、邵阳县乡镇岗招 2 报 3 核减 1 人；郴州永兴县街道岗招 1 报 1 取消',
+      sourceUrl: 'https://rlsbj.cq.gov.cn/zwxx_182/tzgg/202604/t20260428_15642774.html',
+      sourceName: '重庆市人社局 · 2026 年三支一扶未达开考比例岗位调整公告',
+    },
+    {
+      name: '社区工作者',
+      ratio: '常见 1:3 开考比例；广西梧州万秀区 2026 明确「确因工作急需补缺，报领导小组同意后可开考，面试合格线 70 分」',
+      feature: '按区县单独组织、公告密度高周期短；考试内容为公共基础知识 + 社会工作知识，满分常见 100',
+      lowApply: '浙江海盐西塘桥街道岗位招 1 报 2 取消；山东龙口两岗缴费不足合并核减；海南儋州光村镇岗位无考生达合格线取消',
+      sourceUrl: 'http://www.wzwxq.gov.cn/xxgk/gkbz/fdzdgknr/rsxx/zkzl/t27723290.shtml',
+      sourceName: '梧州市万秀区 2026 年公开招聘专职化城市社区工作者公告',
+    },
+    {
+      name: '西部计划',
+      ratio: '没有开考比例概念——志愿服务招募，选拔（笔试/面试/心理测试）由各省项目办自行组织',
+      feature: '应届毕业生或在读研究生可报；服务期 1-3 年、协议一年一签；2026 年全国拟招募约 6 万人，90% 以上岗位在乡镇及以下',
+      lowApply: '竞争远低于公考：体检 + 选拔通过即可，无分数内卷；有志愿服务经历者优先录用',
+      sourceUrl: 'https://xibu.youth.cn',
+      sourceName: '大学生志愿服务西部计划官方网站',
+    },
+    {
+      name: '人才引进',
+      ratio: '通常不设开考比例；定西 2026 明确报名:计划 ≤15:1 免笔试直接面试',
+      feature: '事业编制 + 安家/生活补贴；QS 前 200 硕士通道不看本科层次（详见上方人才引进一节）',
+      lowApply: '定西第二批 306 岗 360 人正在报名（10-13 至 10-27），是当前窗口期最大的低竞争通道',
+      sourceUrl: 'https://zk.xnrczpw.com/nindex/?ecode=dxrcyj',
+      sourceName: '定西市 2026 年度第二批人才引进报名系统',
+    },
+  ],
+};
+
 /** 捡漏攻略：前端「捡漏攻略」弹层一次性取用（随 catalogs 下发） */
 export const BARGAIN_GUIDE = {
   intro:
-    '捡漏 = 没人报 + 我能报 + 考得起。本应用把这三件事拆成可核验的五条件，命中即「圈出来」；下面是实时窗口、政审红线、材料清单与 2026 年真实挂零实录。',
+    '捡漏 = 没人报 + 我能报 + 考得起。本应用把这三件事拆成可核验的条件：五条件全中是「捡漏」，报名≈招录是「准捡漏」；下面是实时窗口、政审红线、材料清单、2026 年真实实录、人才引进绿色通道、低门槛考试清单与分数口径校准。',
   conditions: BARGAIN_CONDITIONS,
+  nearConditions: NEAR_BARGAIN_CONDITIONS,
+  nearMarks: NEAR_BARGAIN_MARKS,
   window: GUOKAO_2027_WINDOW,
   policeBar: RETURNEE_POLICE_BAR,
   noResume: NO_RESUME_NOTE,
   zeroTip: GUOKAO_2026_ZERO_TIP,
+  rencaiQs200: RENCAI_QS200_GUIDE,
+  noRatioExams: NO_RATIO_EXAMS,
+  scoreCalibration: SCORE_CALIBRATION,
 };
 
 export const SORTS = [
@@ -338,6 +692,8 @@ export const SORT_KEYS = SORTS.map((s) => s.key);
 /**
  * 2026 年度国考笔试合格分数线（国家公务员局 2026-01-15 公布）
  * 来源：http://bm.scs.gov.cn 「笔试成绩和合格分数线公布」
+ * 已核对：2024 年度同为 90/95/105 三档（国家公务员局 2024-01-14 公布，新华社/中国青年网转载），
+ * 西部地区和艰苦边远地区职位（15 省区市）总分 90、行测 45，多年稳定。
  */
 export const GUOKAO_SCORE_LINES = [
   {
@@ -474,6 +830,9 @@ export function getDataLevel(key) {
 export function getDegree(key) {
   return DEGREE_MAP.get(key) || null;
 }
+export function getScoreBase(key) {
+  return SCORE_BASE_MAP.get(key) || null;
+}
 
 /** 岗位目录对外投影（前端筛选与徽标用） */
 export function publicCatalogs() {
@@ -484,11 +843,14 @@ export function publicCatalogs() {
     examTypes: EXAM_TYPES,
     ratioTypes: RATIO_TYPES,
     degrees: DEGREES,
+    scoreBases: SCORE_BASES,
     dataLevels: DATA_LEVELS,
     scoreBands: SCORE_BANDS,
     scoreFields: SCORE_FIELDS,
     applyFields: APPLY_FIELDS,
     bargainConditions: BARGAIN_CONDITIONS,
+    nearBargainConditions: NEAR_BARGAIN_CONDITIONS,
+    nearBargainMarks: NEAR_BARGAIN_MARKS,
     bargainGuide: BARGAIN_GUIDE,
     sorts: SORTS,
   };

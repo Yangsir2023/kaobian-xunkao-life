@@ -322,6 +322,198 @@ export function positionSuite({ admin, user, baseUrl }) {
     assertEqual(bad.body.code, 2010, '非法 bargain 值错误码');
   });
 
+  s.test('岗位目录含全部「我能考的」考试类型 + 分数口径 + 准捡漏条件', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const d = res.body.data;
+    const types = d.examTypes.map((t) => t.key);
+    for (const k of ['guokao', 'shengkao', 'shiye', 'xuandiao', 'jundui', 'sanzhiyifu', 'rencai', 'shequ']) {
+      assert(types.includes(k), `考试类型应含 ${k}`);
+    }
+    // 分数口径：总分 / 两科平均
+    assertEqual(d.scoreBases.length, 2, '两种分数口径');
+    assertEqual(d.scoreBases.map((b) => b.key).join(','), 'total,avg100', '口径 key 集合');
+    // 准捡漏五条件 + 三条附加标记
+    assertEqual(d.nearBargainConditions.length, 5, '准捡漏五条件');
+    assertEqual(
+      d.nearBargainConditions.map((c) => c.key).join(','),
+      'lowApply,hasScore,trackOk,degreeFit,returneeSafe',
+      '准捡漏条件 key 集合'
+    );
+    assertEqual(d.nearBargainMarks.length, 3, '三条附加标记');
+    assertEqual(
+      d.nearBargainMarks.map((m) => m.key).join(','),
+      'noRatio,freshOk,scoreStable',
+      '附加标记 key 集合（无进面比 / 应届进面 / 分数持平）'
+    );
+  });
+
+  s.test('政策接口含云南省考合格线 + 分数口径校准 + 人才引进 + 低门槛考试清单', async () => {
+    const res = await admin.get('/api/positions/policies', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const d = res.body.data;
+    // 云南省考合格线（总分口径）
+    assert(Array.isArray(d.yunnanScoreLines) && d.yunnanScoreLines.length >= 6, '云南省考合格线应有多档');
+    assert(d.yunnanScoreLines.some((l) => l.total === 95 && /县/.test(l.scope)), '应含县级 95 分档');
+    assert(d.yunnanScoreLines.every((l) => Number.isFinite(l.total) && l.scope), '每档带口径与分数');
+    // 分数口径校准：必须是「53.35 是平均分口径」的说明
+    assert(d.scoreCalibration && d.scoreCalibration.points.length >= 4, '应下发分数口径校准说明');
+    assert(
+      d.scoreCalibration.points.some((p) => p.includes('53.35')),
+      '校准说明应点名 53.35'
+    );
+    assert(
+      d.scoreCalibration.points.some((p) => p.includes('27%')),
+      '校准说明应正面回应「27% 正确率」误读'
+    );
+    // 人才引进 QS 前 200 通道
+    assert(d.rencaiQs200 && d.rencaiQs200.regions.length >= 3, '应列出人才引进地区清单');
+    assert(
+      d.rencaiQs200.regions.every((r) => /QS/.test(r.scope + r.region) && /^https?:\/\//.test(r.sourceUrl)),
+      '每条人才引进都应说明 QS 口径并附官方来源'
+    );
+    // 低门槛考试清单
+    assert(d.noRatioExams && d.noRatioExams.items.length >= 4, '应含三支一扶 / 社区 / 西部计划 / 人才引进');
+    for (const n of ['三支一扶', '社区工作者', '西部计划', '人才引进']) {
+      assert(d.noRatioExams.items.some((i) => i.name === n), `低门槛考试应含 ${n}`);
+    }
+  });
+
+  s.test('准捡漏筛选：nearBargain=1 只返回 hit 或接近行，且带五条件与三条标记', async () => {
+    const { resetAllLimiters } = await loadLimiters();
+    resetAllLimiters();
+    // 报名≈招录（招 1 报 2）+ 有分数 + 专业可报 + 学历可报 + 政审安全 → 五条全中
+    const res = await user.post('/api/positions', {
+      province: '湖南', examType: 'sanzhiyifu', year: 2026, unit: '邵阳县城步县某卫生院', title: '支医岗',
+      majorTrack: 'cs0812', majorText: '计算机科学与技术（0812）',
+      degree: 'bachelor', ratioType: 'ratio', ratioFlexible: true, ratioText: '未达开考比例可开考、不递减指标',
+      planCount: 1, applicants: 2, paidCount: 2, competition: 2,
+      scoreMin: 53.35, scoreTotal: 200, scoreBasis: 'avg100',
+      officialScoreLine: 95, officialScoreLineNote: '云南 2026 县级机关',
+      freshInterview: true, scoreStable: true,
+    });
+    assertEqual(res.body.code, 0, '录入结果');
+    created.nearId = res.body.data.position.id;
+    const nb = res.body.data.position.nearBargain;
+    assert(nb.hit, '五条件全中应命中准捡漏');
+    assertEqual(nb.conditions.length, 5, '准捡漏五条件');
+    assert(nb.conditions.every((c) => c.ok), '逐条应为 true');
+    assertEqual(nb.marks.length, 3, '三条附加标记');
+    assert(nb.marks.every((m) => m.ok), '三条标记都应命中（无进面比 / 应届进面 / 分数持平）');
+    assertEqual(res.body.data.position.lowApply, true, '低报名判定应命中');
+    assertEqual(res.body.data.position.planCount, 1, '招录人数应落库');
+
+    const list = await user.get('/api/positions?nearBargain=1');
+    assertEqual(list.body.code, 0, '业务码');
+    assert(list.body.data.count >= 1, '至少一条');
+    assert(
+      list.body.data.positions.every((p) => p.nearBargain.hit || p.nearBargain.partial),
+      '筛选结果必须全是命中或接近行'
+    );
+    assert(list.body.data.positions.some((p) => p.id === created.nearId), '命中行应出现');
+    assert(list.body.data.stats.nearBargain >= 1, '统计应含准捡漏命中数');
+  });
+
+  s.test('分数口径与官方合格线：折算比对、低于合格线标记待核验', async () => {
+    const { resetAllLimiters } = await loadLimiters();
+    resetAllLimiters();
+    // 平均分口径 53.35 → 折合总分 106.7，高于官方线 95
+    const ok = await user.post('/api/positions', {
+      province: '云南', examType: 'shengkao', year: 2026, unit: '镇康县某乡镇机关', title: '综合管理岗（口径校验）',
+      majorTrack: 'cs0812', degree: 'master', ratioType: 'none',
+      scoreBasis: 'avg100', scoreMin: 53.35, scoreTotal: 200,
+      officialScoreLine: 95, officialScoreLineNote: '云南省 2026 年度县级机关合格线',
+      planCount: 1, applicants: 1, paidCount: 1,
+    });
+    assertEqual(ok.body.code, 0, '录入结果');
+    created.caliberId = ok.body.data.position.id;
+    const p = ok.body.data.position;
+    assertEqual(p.scoreBasis, 'avg100', '口径应为两科平均');
+    assertEqual(p.scoreInTotal, 106.7, '53.35 × 2 = 106.7');
+    assertEqual(p.officialScoreLine, 95, '官方合格线应落库');
+    assertEqual(p.scoreLineGap, 11.7, '高出合格线 11.7 分');
+    assertEqual(p.belowOfficialLine, false, '高于合格线不应标记待核验');
+
+    // 总分口径下明显低于合格线 → 必须标记待核验
+    const low = await user.post('/api/positions', {
+      province: '云南', examType: 'shengkao', year: 2026, unit: '测试低分单位', title: '低分待核验岗（口径校验）',
+      majorTrack: 'cs0812', degree: 'master', ratioType: 'none',
+      scoreBasis: 'total', scoreMin: 60, scoreTotal: 200,
+      officialScoreLine: 95,
+    });
+    assertEqual(low.body.code, 0, '录入结果');
+    created.lowLineId = low.body.data.position.id;
+    assertEqual(low.body.data.position.scoreInTotal, 60, '总分口径不折算');
+    assertEqual(low.body.data.position.belowOfficialLine, true, '低于合格线应标记待核验');
+
+    // 非法口径被拒
+    const bad = await user.post('/api/positions', {
+      province: '云南', examType: 'shengkao', year: 2026, unit: '非法口径', title: '非法口径岗',
+      majorTrack: 'cs0812', degree: 'master', ratioType: 'none', scoreBasis: 'percent',
+    });
+    assertEqual(bad.body.code, 2010, '非法 scoreBasis 应 2010');
+  });
+
+  s.test('低报名筛选：lowApply=1 只返回报名≈招录的行', async () => {
+    const res = await admin.get('/api/positions?lowApply=1', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    assert(res.body.data.count >= 4, '种子应含多条低报名行');
+    assert(res.body.data.positions.every((p) => p.lowApply === true), '筛选结果必须全是低报名行');
+    // 两类证据：公告明确未达比例（ratioShortfall）或报名规模推算（count）
+    const byShortfall = res.body.data.positions.filter((p) => p.lowApplyBasis === 'ratioShortfall');
+    const byCount = res.body.data.positions.filter((p) => p.lowApplyBasis === 'count');
+    assert(byShortfall.length >= 1, '应有「公告明确未达开考比例」且无报名数字的公告级证据行');
+    assert(byCount.length >= 3, '应有按报名规模推算的低报名行');
+    assert(
+      byCount.every((p) => p.planCount != null && p.effectiveApplicants != null),
+      '按规模推算的行必须能算出报名人数与招录人数'
+    );
+    assert(
+      byShortfall.every((p) => p.ratioShortfall === true),
+      '公告级证据行必须带 ratioShortfall 标记'
+    );
+    assert(res.body.data.stats.lowApply >= 4, '统计应含低报名数');
+    // 每行都要带完整的准捡漏五条件清单与三条标记，UI 才能逐条显示差在哪
+    assert(
+      res.body.data.positions.every((p) => p.nearBargain && p.nearBargain.conditions.length === 5),
+      '低报名行应带准捡漏五条件清单'
+    );
+    assert(
+      res.body.data.positions.every((p) => p.nearBargain.marks.length === 3),
+      '低报名行应带三条附加标记'
+    );
+    assert(
+      res.body.data.positions.some((p) => p.ratioType === 'ratio' && p.ratioFlexible === false),
+      '应含「有比例且未标可开考」的真实样本——这正是「没有就标记一下」的场景'
+    );
+  });
+
+  s.test('报名数据自检：矛盾的数字被标为待核验，且不据此判低报名', async () => {
+    const res = await admin.get('/api/positions?q=行政执法', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    // 云南三行同时记着「竞争比 39:1」与「缴费人数 3/4 人」——必须被自检抓出来
+    const flagged = res.body.data.positions.filter((p) => (p.dataIssues || []).length > 0);
+    assert(flagged.length >= 1, '应至少有一行被标记报名数据待核验');
+    assert(
+      flagged.some((p) => p.dataIssues.some((t) => t.includes('竞争比'))),
+      '自检信息应点名「竞争比 × 招录人数 与报名人数不一致」'
+    );
+    assert(
+      flagged.every((p) => p.lowApply === false),
+      '矛盾行必须按保守口径判否——不能拿小的那个数字宣称低报名'
+    );
+    // 未录入数据的行不虚构口径
+    const noCount = res.body.data.positions.find((p) => p.effectiveApplicants === null);
+    if (noCount) assertEqual(noCount.applyCountSource, null, '无报名数据时口径应为 null');
+  });
+
+  s.test('nearBargain / lowApply 参数校验：非法值返回 2010', async () => {
+    const badNear = await admin.get('/api/positions?nearBargain=maybe', { token: null });
+    assertEqual(badNear.body.code, 2010, '非法 nearBargain 值错误码');
+    const badLow = await admin.get('/api/positions?lowApply=maybe', { token: null });
+    assertEqual(badLow.body.code, 2010, '非法 lowApply 值错误码');
+  });
+
   s.test('跨用户不能修改 / 删除他人录入的岗位（403）', async () => {
     const other = (await admin.get('/api/positions?q=测试录入', { token: null })).body.data.positions[0];
     assert(!other, '游客视角本应查不到，这里只做防御性断言');
@@ -389,8 +581,11 @@ export function positionSuite({ admin, user, baseUrl }) {
     assert(Array.isArray(res.body.data.provinces), '分省统计');
   });
 
-  s.test('删除自己录入的岗位（含捡漏测试行）', async () => {
-    for (const id of [created.id, created.bargainId, created.policeId]) {
+  s.test('删除自己录入的岗位（含捡漏 / 准捡漏 / 口径测试行）', async () => {
+    for (const id of [
+      created.id, created.bargainId, created.policeId,
+      created.nearId, created.caliberId, created.lowLineId,
+    ]) {
       if (!id) continue;
       const res = await user.del(`/api/positions/${id}`);
       assertEqual(res.body.code, 0, '删除结果');
