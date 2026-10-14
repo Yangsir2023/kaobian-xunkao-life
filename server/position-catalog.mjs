@@ -9,6 +9,8 @@
  * 且一律标记 dataLevel='sample'（示例），仅用于演示筛选逻辑，不可当作真实岗位。
  */
 
+import { BEST_RECOMMEND } from './best-recommend.mjs';
+
 /** 31 个省级行政区 + 中央机关（国考职位归属） */
 export const PROVINCES = [
   '中央机关', '北京', '天津', '河北', '山西', '内蒙古', '辽宁', '吉林', '黑龙江',
@@ -483,11 +485,16 @@ export const RETURNEE_POLICE_BAR = {
 /** 2027 年度国考实时窗口（公告 2026-10-13 发布，报名进行中） */
 export const GUOKAO_2027_WINDOW = {
   title: '2027 年度国考 · 报名窗口（进行中）',
-  registerStart: '2026-10-14 08:00',
-  registerEnd: '2026-10-24 18:00',
+  authStart: '2026-10-14 08:00',
   authDeadline: '2026-10-23 18:00',
-  examDate: '2026-11-29',
-  planTotal: '3.57 万人',
+  registerStart: '2026-10-15 08:00',
+  registerEnd: '2026-10-24 18:00',
+  reviewWindow: '2026-10-15 08:00 至 2026-10-26 18:00（资格审查）',
+  feeWindow: '2026-11-01 00:00 至 2026-11-06 24:00（报名确认并缴费，逾期视为放弃）',
+  ticketWindow: '2026-11-23 00:00 至 2026-11-29 15:00（打印准考证）',
+  resultDate: '2027 年 1 月（笔试成绩与合格分数线）',
+  examDate: '2026-11-29（专业科目 / 外语水平测试 2026-11-28 14:00—16:00）',
+  planTotal: '35691 人 / 19426 个职位（较 2026 年度 3.81 万减 0.24 万，降幅 6.3%）',
   planFresh: '2.46 万个应届计划（中央机关直属市（地）级及以下机构主要招录应届高校毕业生）',
   ageRule: '18~38 周岁（1987-10 至 2008-10 出生）；2027 年应届硕士、博士放宽到 43 周岁',
   baseRule: '中央机关及省级直属机构主要招录具有 2 年以上基层工作经历人员（经历计算截止 2026-10）',
@@ -852,6 +859,7 @@ export function publicCatalogs() {
     nearBargainConditions: NEAR_BARGAIN_CONDITIONS,
     nearBargainMarks: NEAR_BARGAIN_MARKS,
     bargainGuide: BARGAIN_GUIDE,
+    bestRecommend: BEST_RECOMMEND,
     sorts: SORTS,
   };
 }

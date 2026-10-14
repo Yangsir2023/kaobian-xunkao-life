@@ -57,6 +57,7 @@ export default {
       title: '留学生友好岗位库',
       subtitle: '按省份筛可报方向，找不设开考比例的低分上岸岗',
       actions: [
+        { key: 'best', icon: 'award', label: '最佳推荐', onClick: () => openBestRecommendSheet() },
         { key: 'bargain', icon: 'star', label: '捡漏攻略', onClick: () => openBargainSheet() },
         { key: 'policy', icon: 'book', label: '政策依据', onClick: () => openPolicySheet() },
         { key: 'add', icon: 'plus', label: '录入岗位', onClick: () => openEditorSheet() },
@@ -106,10 +107,33 @@ async function loadList() {
 function shellHtml() {
   return `
     ${statsHtml()}
+    ${bestBannerHtml()}
     ${filterHtml()}
     ${noticeHtml()}
     <div id="pos-list">${listHtml()}</div>
   `;
+}
+
+/**
+ * 「最佳推荐区域」入口横幅。
+ * 常驻在筛选器上方：一句话给出结论（国考已出、招 35691 人、推荐 5 省 6 类岗位），
+ * 点击进弹层看完整推导链。不放具体数字堆叠，避免和下方列表抢注意力。
+ */
+function bestBannerHtml() {
+  const br = state.catalogs?.bestRecommend;
+  if (!br) return '';
+  const gk = br.blocks.find((b) => b.key === 'guokao');
+  const regions = (gk?.regions || []).slice(0, 3).map((r) => r.region).join(' / ');
+  const posts = (gk?.posts || []).slice(0, 2).map((p) => p.name.split('（')[0]).join(' / ');
+  return `<button class="best-banner mt-10" data-best="1">
+    <span class="best-banner-icon">${icon('award', { size: 18 })}</span>
+    <span class="best-banner-body">
+      <span class="best-banner-title">最佳推荐区域 · 今年国考已出，考哪里最划算</span>
+      <span class="best-banner-line">推荐地区：${escapeHtml(regions)} … · 推荐岗位：${escapeHtml(posts)} …</span>
+      <span class="best-banner-line">另含省考预测与其他 12 类考试时间安排 · 每条都标了数据级别与来源</span>
+    </span>
+    ${icon('chevronRight', { size: 16, className: 'icon icon-sm' })}
+  </button>`;
 }
 
 function statsHtml() {
@@ -133,6 +157,9 @@ function filterHtml() {
   const cat = state.catalogs;
   return `
     <div class="chip-scroll mt-10">
+      <button class="chip chip-best" data-best="1">
+        ${icon('award', { size: 13, className: 'icon icon-sm' })}最佳推荐
+      </button>
       <button class="chip chip-bargain ${state.bargain ? 'is-active' : ''}" data-bargain="1">
         ${icon('star', { size: 13, className: 'icon icon-sm' })}捡漏专区
       </button>
@@ -563,6 +590,10 @@ function bind(root) {
 
   root.querySelectorAll('[data-guide]').forEach((btn) => {
     btn.addEventListener('click', () => openBargainSheet());
+  });
+
+  root.querySelectorAll('[data-best]').forEach((btn) => {
+    btn.addEventListener('click', () => openBestRecommendSheet());
   });
 
   root.querySelectorAll('[data-province]').forEach((btn) => {
@@ -1185,6 +1216,183 @@ function openEditorSheet(existing = null) {
         }
       });
     },
+  });
+}
+
+/* ───────────────── 最佳推荐弹层 ───────────────── */
+
+/** 数据级别徽标：与后端 bestRecommend.levels 同源，避免两处各写一套配色 */
+function bestLevelBadge(key) {
+  const lv = (state.catalogs?.bestRecommend?.levels || []).find((l) => l.key === key);
+  if (!lv) return '';
+  return `<span class="badge" style="background:${lv.accent};color:${lv.color}">${escapeHtml(lv.name)}</span>`;
+}
+
+/** 来源外链（统一形态：官方 / 第三方页面 + 发布时间在 sourceName 里） */
+function bestSource(src) {
+  if (!src?.sourceUrl) return '';
+  return `<a class="link-out tiny" href="${escapeHtml(src.sourceUrl)}" target="_blank" rel="noopener">
+    ${icon('external', { size: 12, className: 'icon icon-sm' })}${escapeHtml(src.sourceName)}
+  </a>`;
+}
+
+/** 推荐条目卡（地区 / 岗位 / 省考推荐共用一套结构） */
+function bestPickCard(p) {
+  const title = p.region || p.name || '';
+  const lines = [];
+  if (p.scale) lines.push(`<div class="region-line"><b>招录</b>：${escapeHtml(p.scale)}</div>`);
+  if (p.metrics) lines.push(`<div class="region-line"><b>竞争</b>：${escapeHtml(p.metrics)}</div>`);
+  if (p.why) lines.push(`<div class="region-line"><b>为什么推荐</b>：${escapeHtml(p.why)}</div>`);
+  if (p.fit) lines.push(`<div class="region-line"><b>适合谁</b>：${escapeHtml(p.fit)}</div>`);
+  const risk = p.risk || p.caution;
+  if (risk) lines.push(`<div class="region-line is-risk"><b>风险 / 注意</b>：${escapeHtml(risk)}</div>`);
+  return `<div class="best-pick">
+    <div class="region-name">${p.rank ? `<span class="best-rank">${p.rank}</span>` : ''}${escapeHtml(title)}${bestLevelBadge(p.level)}</div>
+    ${lines.join('')}
+    ${bestSource(p)}
+  </div>`;
+}
+
+function openBestRecommendSheet() {
+  const br = state.catalogs?.bestRecommend;
+  if (!br) {
+    toast('推荐数据加载中，请稍后重试');
+    return;
+  }
+  const gk = br.blocks.find((b) => b.key === 'guokao');
+  const sk = br.blocks.find((b) => b.key === 'shengkao');
+  const others = br.blocks.find((b) => b.key === 'others');
+
+  openSheet({
+    title: '最佳推荐区域',
+    subtitle: '先过硬门槛，再按竞争烈度剔热，最后在招录规模大的省份里挑冷门行',
+    content: `
+      <div class="notice notice-info">${icon('award', { size: 16 })}<div class="grow">${escapeHtml(br.intro)}</div></div>
+
+      <div class="best-legend mt-10">
+        ${(br.levels || [])
+          .map(
+            (l) => `<span class="best-legend-item"><span class="badge" style="background:${l.accent};color:${l.color}">${escapeHtml(l.name)}</span>
+              <span class="tiny muted">${
+                l.key === 'official'
+                  ? '公告原文，可直接引用'
+                  : l.key === 'thirdparty'
+                    ? '第三方统计，需以官方复核'
+                    : '按历年规律推算，非官方承诺'
+              }</span></span>`
+          )
+          .join('')}
+      </div>
+
+      <!-- ── 一、国考 ── -->
+      <div class="filter-group mt-14">
+        <div class="filter-group-title">${escapeHtml(gk.name)}</div>
+        <div class="best-headline">${escapeHtml(gk.summary.headline)}</div>
+
+        <div class="small muted mt-10">考情速览（逐条标级别，可点开来源核对）</div>
+        <div class="kv-list mt-6">
+          ${gk.summary.facts
+            .map(
+              (f) => `<div class="kv">
+                <div class="kv-key" style="width:76px">${escapeHtml(f.label)}</div>
+                <div class="kv-val">${escapeHtml(f.value)} ${bestLevelBadge(f.level)}</div>
+              </div>`
+            )
+            .join('')}
+        </div>
+        ${bestSource(gk.summary)}
+
+        <div class="small muted mt-14">① 最推荐的 5 个报考地区（2027 招录规模 × 2026 实际竞争数据）</div>
+        <div class="mt-6">${gk.regions.map(bestPickCard).join('')}</div>
+
+        <div class="small muted mt-14">② 最推荐的 6 类岗位（按「政审安全 + 竞争温和 + 计算机对口」排序）</div>
+        <div class="mt-6">${gk.posts.map(bestPickCard).join('')}</div>
+
+        <div class="small muted mt-14">③ 对留学生明确不推荐的岗位（不是难，是报不了 / 不值）</div>
+        <div class="mt-6">
+          ${gk.avoid
+            .map(
+              (a) => `<div class="notice notice-warn mt-6">${icon('alert', { size: 16 })}<div class="grow">
+                <b>${escapeHtml(a.name)}</b> ${bestLevelBadge(a.level)}<br />${escapeHtml(a.reason)}
+              </div></div>`
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <!-- ── 二、省考 ── -->
+      <div class="filter-group">
+        <div class="filter-group-title">${escapeHtml(sk.name)}</div>
+        <div class="notice notice-warn">${icon('alert', { size: 16 })}<div class="grow">${escapeHtml(sk.summary.note)}</div></div>
+
+        <div class="small muted mt-10">两条线互不冲突，时间基本错开，可以都报</div>
+        <div class="mt-6">
+          ${sk.summary.lines
+            .map(
+              (l) => `<div class="best-pick">
+                <div class="region-name">${escapeHtml(l.name)}</div>
+                <div class="region-line"><b>省份</b>：${escapeHtml(l.provinces)}</div>
+                <div class="region-line"><b>公告</b>：${escapeHtml(l.announce)}</div>
+                <div class="region-line"><b>报名</b>：${escapeHtml(l.register)}</div>
+                <div class="region-line"><b>笔试</b>：${escapeHtml(l.exam)}</div>
+                <div class="region-line">${escapeHtml(l.note)}</div>
+                ${bestLevelBadge(l.level)}
+              </div>`
+            )
+            .join('')}
+        </div>
+
+        <div class="small muted mt-14">最推荐的 3 类报考方向</div>
+        <div class="mt-6">${sk.summary.picks.map(bestPickCard).join('')}</div>
+
+        <div class="small muted mt-14">省考特有的三条约束（比国考更容易踩）</div>
+        <ul class="policy-list mt-6">
+          ${sk.summary.caveats.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}
+        </ul>
+      </div>
+
+      <!-- ── 三、其他考试 ── -->
+      <div class="filter-group">
+        <div class="filter-group-title">${escapeHtml(others.name)}</div>
+
+        <div class="small muted">先把这一年的节点压成一条时间轴，再逐条看细节</div>
+        <ol class="best-seq mt-6">
+          ${others.sequence
+            .map(
+              (s) => `<li><span class="best-seq-window">${escapeHtml(s.window)}</span>
+                <span class="best-seq-tag">${escapeHtml(s.tag)}</span>
+                <span class="best-seq-action">${escapeHtml(s.action)}</span></li>`
+            )
+            .join('')}
+        </ol>
+
+        <div class="small muted mt-14">各考试的公告 / 报名 / 笔试窗口</div>
+        <div class="mt-6">
+          ${others.timeline
+            .map(
+              (t) => `<div class="best-pick">
+                <div class="region-name">${escapeHtml(t.name)}${bestLevelBadge(t.level)}</div>
+                <div class="region-line"><b>公告</b>：${escapeHtml(t.announce)}</div>
+                <div class="region-line"><b>报名</b>：${escapeHtml(t.register)}</div>
+                <div class="region-line"><b>考试</b>：${escapeHtml(t.exam)}</div>
+                <div class="region-line">${escapeHtml(t.note)}</div>
+                ${bestSource(t)}
+              </div>`
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">四、怎么用这份推荐</div>
+        <ul class="policy-list">
+          <li>国考部分可以直接执行：公告已出，报名窗口 2026-10-15 08:00 — 10-24 18:00，先完成实名实人认证再选岗。</li>
+          <li>省考与其他考试的时间是<b>预测</b>，只用来排备考节奏与巡考顺序；公告一旦发布，以官方为准，本应用会同步更新提醒节点。</li>
+          <li>推荐地区是「岗位池大 + 竞争温和」的组合结论，不等于「报了就上」。真正的决定因素仍是报名中后期该职位的<b>报名人数 ÷ 招录人数</b>。</li>
+          <li>把候选行用「录入岗位 / 批量导入」灌进本应用，会自动跑捡漏五条件与准捡漏判定，和本页推荐互相印证。</li>
+        </ul>
+      </div>
+    `,
   });
 }
 

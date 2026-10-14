@@ -267,6 +267,17 @@ async function main() {
     await shotLong('22-reminders-home');
     await goto('/categories');
     await shotLong('23-categories-ten');
+
+    // 8. 最佳推荐区域：入口横幅 + 弹层三段（国考 / 省考 / 其他考试）
+    await goto('/positions');
+    await shot(cdp, '26-best-banner', { clip: viewportClip });
+    await click('[data-best]');
+    await sleep(1200);
+    await sheetShot(cdp, '27-best-recommend-guokao');
+    await scrollSheet(0.42);
+    await sheetShot(cdp, '28-best-recommend-shengkao');
+    await scrollSheet(1);
+    await sheetShot(cdp, '29-best-recommend-others');
   } finally {
     try {
       if (cdp) await cdp.send('Browser.close');

@@ -27,6 +27,108 @@ export function positionSuite({ admin, user, baseUrl }) {
     assert(d.bargainGuide && d.bargainGuide.window, '应下发捡漏攻略（含实时报名窗口）');
   });
 
+  s.test('最佳推荐：三大板块齐全，按「国考已出 / 省考预测 / 其他考试」组织', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const br = res.body.data.bestRecommend;
+    assert(br, 'catalogs 应下发 bestRecommend');
+    assertEqual(br.blocks.length, 3, '三个板块');
+    assertEqual(br.blocks.map((b) => b.key).join(','), 'guokao,shengkao,others', '板块顺序：国考 → 省考 → 其他考试');
+
+    const [gk, sk, others] = br.blocks;
+    assert(gk.regions.length >= 5, `国考推荐地区 ≥5，实际 ${gk.regions.length}`);
+    assert(gk.posts.length >= 6, `国考推荐岗位 ≥6，实际 ${gk.posts.length}`);
+    assert(gk.avoid.length >= 3, '应给出明确不推荐的岗位');
+    assert(gk.summary.facts.length >= 10, '国考考情速览逐条可核');
+    assertEqual(sk.summary.lines.length, 2, '省考两条线（自主命题 / 多省联考）');
+    assert(sk.summary.picks.length >= 3, '省考推荐地区');
+    assert(sk.summary.caveats.length >= 3, '省考特有约束（户籍 / 认证 / 只能报一省）');
+    assert(others.timeline.length >= 10, `其他考试 ≥10 类，实际 ${others.timeline.length}`);
+    assert(others.sequence.length >= 8, '行动时间轴');
+  });
+
+  s.test('最佳推荐：每条结论都带数据级别，且级别在白名单内', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    const br = res.body.data.bestRecommend;
+    const allowed = new Set(br.levels.map((l) => l.key));
+    assertEqual([...allowed].join(','), 'official,thirdparty,forecast', '三档级别：官方 / 第三方 / 预测');
+
+    const [gk, sk, others] = br.blocks;
+    const items = [
+      ...gk.summary.facts,
+      ...gk.regions,
+      ...gk.posts,
+      ...gk.avoid,
+      ...sk.summary.lines,
+      ...sk.summary.picks,
+      ...others.timeline,
+    ];
+    assert(items.length > 40, `应逐条标注级别，实际 ${items.length} 条`);
+    const bad = items.filter((it) => !allowed.has(it.level));
+    assertEqual(bad.length, 0, `越级条目：${bad.map((b) => b.name || b.region || b.label).join(' / ')}`);
+    // 每一档都必须真的被用到，否则图例是摆设
+    for (const key of allowed) {
+      assert(items.some((it) => it.level === key), `级别 ${key} 未在条目中使用`);
+    }
+  });
+
+  s.test('最佳推荐：带竞争 / 招录结论的条目必须有来源链接', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    const br = res.body.data.bestRecommend;
+    const [gk, sk, others] = br.blocks;
+    // 这些条目全部承载具体数字（竞争比、进面分、招录人数、报名窗口），必须可溯源
+    const sourced = [
+      ...gk.regions,
+      ...gk.posts,
+      ...gk.avoid,
+      ...sk.summary.picks,
+      ...others.timeline,
+    ];
+    const missing = sourced.filter((it) => !/^https?:\/\//.test(it.sourceUrl || ''));
+    assertEqual(missing.length, 0, `缺来源：${missing.map((m) => m.name || m.region).join(' / ')}`);
+    const noName = sourced.filter((it) => !it.sourceName);
+    assertEqual(noName.length, 0, '来源必须带可读名称（便于用户判断可信度）');
+    // 省考推荐属预测，必须显式声明
+    assert(sk.summary.picks.every((p) => p.level === 'forecast'), '省考推荐只能标为预测');
+    assert(sk.summary.note.includes('预测') || sk.summary.note.includes('推算'), '省考板块需声明时间口径');
+  });
+
+  s.test('最佳推荐：省考两条线与国考窗口口径一致（2027 公告已校准）', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    const d = res.body.data;
+    const [gk, sk] = d.bestRecommend.blocks;
+    // 国考关键日期必须与捡漏攻略里的实时窗口对得上，避免两处各写一套
+    const win = d.bargainGuide.window;
+    assertEqual(win.authStart, '2026-10-14 08:00', '注册认证起始（公告原文）');
+    assertEqual(win.registerStart, '2026-10-15 08:00', '提交报考申请起始（公告原文）');
+    assertEqual(win.registerEnd, '2026-10-24 18:00', '报名截止');
+    assertEqual(win.authDeadline, '2026-10-23 18:00', '注册认证截止');
+    assert(win.examDate.includes('2026-11-29'), '笔试日期');
+    assert(win.planTotal.includes('35691'), '招录规模应与职位表统计一致');
+    // 速览里的报名窗口与实时窗口同源
+    const reg = gk.summary.facts.find((f) => f.label === '报名窗口');
+    assert(reg, '速览应含报名窗口条目');
+    assert(reg.value.includes('2026-10-15') && reg.value.includes('2026-10-24'), '报名窗口日期');
+    assertEqual(reg.level, 'official', '报名窗口来自公告原文');
+    // 省考两条线都要标预测，且联考只能报一个省必须写明
+    const joint = sk.summary.lines.find((l) => l.key === 'joint');
+    assert(joint && joint.level === 'forecast', '联考时间标预测');
+    assert(joint.note.includes('只能选一个省份'), '必须写明联考只能报一个省');
+  });
+
+  s.test('最佳推荐：留学生政审红线在推荐里被显式排除', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    const gk = res.body.data.bestRecommend.blocks.find((b) => b.key === 'guokao');
+    const police = gk.avoid.find((a) => a.name.includes('公安'));
+    assert(police, '必须显式列出公安 / 边检类不可报');
+    assert(police.reason.includes('六个月'), '写明六个月境外经历的禁入条款');
+    assertEqual(police.level, 'official', '政审条款来自官方文件');
+    // 推荐岗位里不应出现人民警察类（边检 / 缉私 / 铁路公安 / 公安）
+    const forbidden = /边检|边防|缉私|铁路公安|人民警察|移民管理/;
+    const bad = gk.posts.filter((p) => forbidden.test(p.name));
+    assertEqual(bad.length, 0, `推荐岗位混入政审红线岗位：${bad.map((b) => b.name).join(' / ')}`);
+  });
+
   s.test('政策基线游客可读：国考分数线与分省开考比例', async () => {
     const res = await admin.get('/api/positions/policies', { token: null });
     assertEqual(res.body.code, 0, '业务码');

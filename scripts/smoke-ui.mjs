@@ -247,7 +247,109 @@ async function main() {
     const afterRender = (await cdp.eval(RAIL_STATE))[0].scrollLeft;
     check('重建后滚动位置被还原', afterRender === kept, `${kept} → ${afterRender}`);
 
-    console.log('\n[6] 首页 / 分类页的标签条也自动增强');
+    console.log('\n[6] 最佳推荐区域：入口横幅 + 弹层内容');
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions` });
+    await sleep(1900);
+    const banner = await cdp.eval(`(() => {
+      const b = document.querySelector('[data-best]');
+      if (!b) return { found: false };
+      const r = b.getBoundingClientRect();
+      return {
+        found: true,
+        tag: b.tagName,
+        title: b.querySelector('.best-banner-title')?.textContent || '',
+        lines: b.querySelectorAll('.best-banner-line').length,
+        w: Math.round(r.width), h: Math.round(r.height),
+        x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+        chip: !!document.querySelector('.chip-best'),
+        barAction: !!document.querySelector('[data-bar-action="best"]'),
+      };
+    })()`);
+    check('岗位页存在最佳推荐入口横幅', banner.found, banner.found ? `${banner.w}×${banner.h}` : '未找到');
+    check('横幅有标题与两行摘要', banner.found && banner.title.includes('最佳推荐') && banner.lines === 2);
+    check('标签条里有「最佳推荐」标签', banner.chip === true);
+    check('顶栏有最佳推荐图标按钮', banner.barAction === true);
+    await cdp.click(banner.x, banner.y);
+    await sleep(800);
+    const sheet = await cdp.eval(`(() => {
+      const t = document.body.innerText;
+      return {
+        open: !!document.querySelector('.sheet-panel'),
+        title: document.querySelector('.sheet-title')?.textContent || '',
+        blocks: ['今年国考', '省考', '其他考试'].filter((k) => t.includes(k)).length,
+        levels: ['官方公告', '第三方整理', '预测推算'].filter((k) => t.includes(k)).length,
+        picks: document.querySelectorAll('.best-pick').length,
+        ranks: document.querySelectorAll('.best-rank').length,
+        seq: document.querySelectorAll('.best-seq li').length,
+        sources: document.querySelectorAll('.best-pick .link-out').length,
+        window: t.includes('2026-10-15') && t.includes('2026-10-24'),
+        factBadges: document.querySelectorAll('.kv-val .badge').length,
+      };
+    })()`);
+    check('点击后弹层打开', sheet.open === true);
+    check('弹层标题正确', sheet.title === '最佳推荐区域', sheet.title);
+    check('三大板块齐全（国考 / 省考 / 其他考试）', sheet.blocks === 3, `${sheet.blocks}/3`);
+    check('三档数据级别图例齐全（官方 / 第三方 / 预测）', sheet.levels === 3, `${sheet.levels}/3`);
+    check('推荐条目卡渲染', sheet.picks >= 20, `${sheet.picks} 张`);
+    check('排名徽标渲染', sheet.ranks >= 8, `${sheet.ranks} 个`);
+    check('行动时间轴渲染', sheet.seq >= 10, `${sheet.seq} 条`);
+    check('来源外链渲染', sheet.sources >= 15, `${sheet.sources} 条`);
+    check('考情速览逐条带数据级别徽标', sheet.factBadges >= 10, `${sheet.factBadges} 个`);
+    check('含国考报名窗口具体日期', sheet.window === true);
+
+    const wide = await cdp.eval(`(() => {
+      const body = document.querySelector('.sheet-body');
+      const cards = [...document.querySelectorAll('.sheet-body .best-pick, .sheet-body .best-seq li')];
+      return {
+        overflow: body ? body.scrollWidth - body.clientWidth : -1,
+        cardW: cards.length ? Math.round(Math.max(...cards.map((e) => e.getBoundingClientRect().width))) : 0,
+        bodyW: body ? Math.round(body.getBoundingClientRect().width) : 0,
+      };
+    })()`);
+    check('480px 下弹层无横向溢出', wide.overflow <= 1, `+${wide.overflow}`);
+    check('推荐卡宽度不超出弹层内容区', wide.cardW <= wide.bodyW, `${wide.cardW} <= ${wide.bodyW}`);
+
+    const closeOk = await cdp.eval(`(() => {
+      const b = document.querySelector('.sheet-backdrop');
+      return !!b;
+    })()`);
+    check('弹层容器可关闭（backdrop 存在）', closeOk === true);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(400);
+
+    console.log('\n[7] 窄屏 360px 下弹层仍然不横向溢出');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360, height: 780, deviceScaleFactor: 1, mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions` });
+    await sleep(1900);
+    await cdp.eval(`document.querySelector('[data-best]')?.click()`);
+    await sleep(900);
+    const narrow = await cdp.eval(`(() => {
+      const body = document.querySelector('.sheet-body');
+      const panel = document.querySelector('.sheet-panel');
+      const cards = [...document.querySelectorAll('.sheet-body .best-pick, .sheet-body .best-seq li')];
+      return {
+        open: !!panel,
+        overflow: body ? body.scrollWidth - body.clientWidth : -1,
+        panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : -1,
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+        cardW: cards.length ? Math.round(Math.max(...cards.map((e) => e.getBoundingClientRect().width))) : 0,
+        bodyW: body ? Math.round(body.getBoundingClientRect().width) : 0,
+      };
+    })()`);
+    check('360px 下弹层仍能打开', narrow.open === true);
+    check('360px 下无横向溢出（弹层 / 面板 / 整页）',
+      narrow.overflow <= 1 && narrow.panelOverflow <= 1 && narrow.docOverflow <= 1,
+      `body+${narrow.overflow} panel+${narrow.panelOverflow} doc+${narrow.docOverflow}`);
+    check('360px 下推荐卡不超出内容区', narrow.cardW <= narrow.bodyW, `${narrow.cardW} <= ${narrow.bodyW}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(300);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+
+    console.log('\n[8] 首页 / 分类页的标签条也自动增强');
     for (const hash of ['/', '/categories']) {
       await cdp.send('Page.navigate', { url: `${BASE}/#${hash}` });
       await sleep(1800);

@@ -865,6 +865,84 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 .mini-tag.is-hot { background: var(--danger-weak); color: var(--danger); }
 .mini-tag.is-ok { background: var(--ok-weak); color: var(--ok); }
 
+/* ── 最佳推荐区域 ─────────────────────────────────────── */
+
+/* 入口横幅：常驻在筛选器上方，点开完整推导链 */
+.best-banner {
+  display: flex; gap: 10px; align-items: center;
+  width: 100%; box-sizing: border-box; text-align: left; font: inherit;
+  padding: 11px 12px; border-radius: var(--radius);
+  background: linear-gradient(135deg, #EEF3FF 0%, #F6F3FF 100%);
+  border: 1px solid #C9D8FF; color: var(--text); cursor: pointer;
+}
+.best-banner:active { transform: scale(.995); }
+.best-banner-icon {
+  flex: none; width: 32px; height: 32px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primary); color: #fff;
+}
+.best-banner-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.best-banner-title { font-size: 13px; font-weight: 700; color: var(--primary-dark); }
+.best-banner-line { font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+.best-banner > svg { flex: none; color: var(--primary); }
+
+.chip-best { font-weight: 650; }
+.chip-best.is-active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* 数据级别图例：官方公告 / 第三方整理 / 预测推算 */
+.best-legend { display: flex; flex-direction: column; gap: 5px; }
+.best-legend-item { display: flex; align-items: center; gap: 7px; }
+.best-legend-item .badge { flex: none; }
+
+/* 结论一句话：左侧主色竖线，避免和 notice 抢视觉 */
+.best-headline {
+  font-size: 12.5px; line-height: 1.7; color: var(--text);
+  padding: 9px 11px; border-radius: var(--radius);
+  background: var(--surface-2); border-left: 3px solid var(--primary);
+}
+
+/* 推荐条目卡（地区 / 岗位 / 省考推荐 / 其他考试共用） */
+.best-pick {
+  padding: 11px 12px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.best-pick + .best-pick { margin-top: 8px; }
+.best-pick .region-name {
+  font-size: 13.5px; font-weight: 700;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.best-pick .region-line { font-size: 12px; color: var(--text-2); line-height: 1.7; margin-top: 5px; }
+.best-pick .region-line b { color: var(--text); font-weight: 650; }
+.best-pick .region-line.is-risk { color: #8A5209; }
+.best-pick .region-line.is-risk b { color: #8A5209; }
+
+/* 排名徽标 */
+.best-rank {
+  flex: none; width: 19px; height: 19px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--primary); color: #fff;
+  font-size: 11.5px; font-weight: 700; font-family: var(--font-num);
+}
+
+/* 行动时间轴：窗口 + 标签 + 动作 */
+.best-seq { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.best-seq li {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;
+  padding: 9px 11px; border-radius: var(--radius);
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 12px; line-height: 1.6;
+}
+.best-seq-window {
+  font-family: var(--font-num); font-weight: 700;
+  color: var(--primary-dark); font-size: 11.5px; white-space: nowrap;
+}
+.best-seq-tag {
+  justify-self: start; font-size: 10.5px; font-weight: 650;
+  padding: 1px 7px; border-radius: 5px;
+  background: var(--primary-weak); color: var(--primary-dark);
+}
+.best-seq-action { grid-column: 1 / -1; color: var(--text-2); }
+
 /* ── 工具类 ───────────────────────────────────────────── */
 .hidden { display: none !important; }
 .spin { animation: spin 1s linear infinite; }
