@@ -6,7 +6,7 @@
  * 本地演示环境不需要安装任何依赖。
  *
  * 对应集合（需在 CloudBase 控制台创建，权限建议「仅管理端可读写」）：
- *   users / reminders / refresh_tokens / audit_logs / devices
+ *   users / reminders / positions / refresh_tokens / audit_logs / devices
  */
 import { createRequire } from 'node:module';
 import { toCloudBaseWhere } from '../lib/matcher.mjs';
@@ -116,7 +116,7 @@ export function createCloudBaseDriver(options) {
       app = tcb.init({ env: envId, secretId, secretKey, timeout: 10000 });
       const db = app.database();
       const command = db.command;
-      const names = ['users', 'reminders', 'refresh_tokens', 'audit_logs', 'devices'];
+      const names = ['users', 'reminders', 'positions', 'refresh_tokens', 'audit_logs', 'devices'];
       collections = {};
       for (const name of names) {
         collections[name] = new CloudBaseCollection(db, command, `${collectionPrefix}${name}`);

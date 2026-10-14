@@ -20,6 +20,7 @@ import {
 import { authSuite } from './suites/auth.mjs';
 import { rbacSuite } from './suites/rbac.mjs';
 import { reminderSuite } from './suites/reminders.mjs';
+import { positionSuite } from './suites/positions.mjs';
 import { securitySuite } from './suites/security.mjs';
 
 const C = {
@@ -122,9 +123,10 @@ async function main() {
   resetAllLimiters();
 
   /* ── 3) 其余套件 ── */
-  await runSuite(reminderSuite({ admin, user, baseUrl }), 1, 4);
-  await runSuite(rbacSuite({ admin, alice, bob, guest }), 2, 4);
-  await runSuite(securitySuite({ admin, user, baseUrl }), 3, 4);
+  await runSuite(reminderSuite({ admin, user, baseUrl }), 1, 5);
+  await runSuite(positionSuite({ admin, user, baseUrl }), 2, 5);
+  await runSuite(rbacSuite({ admin, alice, bob, guest }), 3, 5);
+  await runSuite(securitySuite({ admin, user, baseUrl }), 4, 5);
 
   const duration = ((Date.now() - started) / 1000).toFixed(2);
   const total = results.passed + results.failed;

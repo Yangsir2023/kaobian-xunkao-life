@@ -11,6 +11,7 @@ import { escapeHtml } from './utils.mjs';
 
 import homePage from './pages/home.mjs';
 import categoriesPage from './pages/categories.mjs';
+import positionsPage from './pages/positions.mjs';
 import detailPage from './pages/detail.mjs';
 import editorPage from './pages/editor.mjs';
 import loginPage from './pages/login.mjs';
@@ -22,6 +23,7 @@ import wechatTicketPage from './pages/wechat-ticket.mjs';
 const routes = [
   { path: '/', page: homePage },
   { path: '/categories', page: categoriesPage },
+  { path: '/positions', page: positionsPage },
   { path: '/reminders/new', page: editorPage },
   { path: '/reminders/:id', page: detailPage },
   { path: '/reminders/:id/edit', page: editorPage },
@@ -35,6 +37,7 @@ const routes = [
 
 const TABS = [
   { key: 'home', path: '/', label: '提醒', icon: 'bell' },
+  { key: 'positions', path: '/positions', label: '岗位', icon: 'briefcase' },
   { key: 'categories', path: '/categories', label: '分类', icon: 'grid' },
   { key: 'new', path: '/reminders/new', label: '新增', icon: 'plus', fab: true },
   { key: 'me', path: '/me', label: '我的', icon: 'user' },

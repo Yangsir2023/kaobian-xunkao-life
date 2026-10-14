@@ -42,6 +42,30 @@ function emptyState() {
   };
 }
 
+/**
+ * 令牌额外写一份到 Cookie。
+ *
+ * 原因：部分托管平台的反向代理**既不转发 `Authorization`，也不转发自定义请求头**
+ * （实测某云托管环境即是如此），只有 Cookie 与查询串能真正到达应用。
+ * 两者之间选 Cookie —— 浏览器自动携带，不像查询串会把令牌写进 URL、
+ * 浏览器历史和各级访问日志。
+ *
+ * Secure 只在 HTTPS 下加，否则本地 http://127.0.0.1 调试时 Cookie 不会被发送。
+ */
+function syncTokenCookie() {
+  try {
+    const secure = location.protocol === 'https:' ? '; Secure' : '';
+    if (!state.accessToken) {
+      document.cookie = `xunkao_token=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+      return;
+    }
+    const maxAge = 60 * 60 * 24 * 30; // 30 天，与刷新令牌时效对齐
+    document.cookie = `xunkao_token=${encodeURIComponent(state.accessToken)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+  } catch {
+    /* 忽略：Cookie 不可用时仍可走请求头通道（常规部署） */
+  }
+}
+
 function persist() {
   try {
     if (!state.accessToken) localStorage.removeItem(KEY);
@@ -49,6 +73,7 @@ function persist() {
   } catch {
     /* 隐私模式下写入会失败，此时退化为「内存会话」 */
   }
+  syncTokenCookie();
 }
 
 function emit() {

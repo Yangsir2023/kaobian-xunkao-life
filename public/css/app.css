@@ -345,6 +345,98 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 .cat-counts { display: flex; gap: 8px; font-size: 11px; color: var(--text-3); margin-top: auto; }
 .cat-counts b { font-family: var(--font-num); color: var(--text-2); font-size: 12px; }
 
+/* ── 岗位库 ─────────────────────────────────────────── */
+.chip-label {
+  flex: none; height: 26px; padding: 0 8px; border: 0; background: none;
+  color: var(--text-3); font-size: 11px; font-weight: 700; letter-spacing: .4px; cursor: default;
+}
+
+.pos-card {
+  text-align: left; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 12px 13px; cursor: pointer;
+  box-shadow: var(--shadow-sm); transition: border-color .15s, transform .12s;
+}
+.pos-card:active { transform: scale(0.99); border-color: var(--border-strong); }
+.pos-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pos-province {
+  font-size: 12px; font-weight: 700; color: var(--primary-dark);
+  background: var(--primary-weak); border-radius: 6px; padding: 2px 7px;
+}
+.pos-score { margin-left: auto; display: flex; align-items: baseline; gap: 1px; }
+.pos-score-value { font-size: 21px; font-weight: 750; letter-spacing: -0.5px; color: var(--ok); }
+.pos-score-total { font-size: 11px; color: var(--text-3); }
+.pos-title { font-size: 15px; font-weight: 650; margin: 9px 0 0; line-height: 1.35; letter-spacing: -0.1px; }
+.pos-unit { font-size: 12px; color: var(--text-3); margin-top: 3px; line-height: 1.5; }
+.pos-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.pos-tag {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+  background: var(--surface-3); color: var(--text-2);
+}
+.pos-tag.is-none { background: var(--ok-weak); color: var(--ok); }
+.pos-tag.is-ratio { background: var(--warn-weak); color: #8A5209; }
+.pos-tag.is-plain { background: var(--surface-3); color: var(--text-3); }
+.pos-tag.is-low { background: var(--primary-weak); color: var(--primary-dark); }
+.pos-notes {
+  font-size: 12px; color: var(--text-2); line-height: 1.65; margin-top: 9px;
+  padding-top: 9px; border-top: 1px dashed var(--border);
+}
+
+/* 卡片上的进面分数行：最低 / 最高 / 平均 */
+.pos-scoreline {
+  margin-top: 9px; padding: 7px 10px; border-radius: 10px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 12px; color: var(--text-3); line-height: 1.5;
+}
+.pos-scoreline b { color: var(--text); font-family: var(--font-num); font-size: 13px; }
+.pos-scoreline .num { font-family: var(--font-num); }
+
+/* 详情页进面分数三件套 */
+.score-triple {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.score-cell {
+  text-align: center; padding: 12px 6px 10px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.score-cell.is-key {
+  background: var(--ok-weak); border-color: #9ED3CB;
+}
+.score-cell .score-value {
+  font-size: 22px; font-weight: 750; font-family: var(--font-num);
+  line-height: 1.15; letter-spacing: -0.4px; color: var(--text);
+}
+.score-cell.is-key .score-value { color: var(--ok); }
+.score-cell .score-label { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+.score-meta {
+  margin-top: 8px; font-size: 11.5px; color: var(--text-3); line-height: 1.6;
+}
+.score-meta .num { font-family: var(--font-num); }
+
+/* 详情页报名数据条 */
+.apply-strip {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.apply-cell {
+  text-align: center; padding: 10px 4px 9px; background: var(--surface-2);
+}
+.apply-cell .apply-value {
+  font-size: 17px; font-weight: 700; font-family: var(--font-num);
+  line-height: 1.2; color: var(--text);
+}
+.apply-cell .apply-label { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+
+/* 政策说明 */
+.policy-list { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); line-height: 1.75; }
+.policy-list li { margin-bottom: 4px; }
+.policy-card {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 11px 12px; margin-bottom: 8px;
+}
+.field-row { display: flex; gap: 10px; align-items: flex-start; }
+.field-row > .field { margin-bottom: 14px; }
+
 /* ── 表单 ─────────────────────────────────────────────── */
 .field { margin-bottom: 14px; }
 .field-label {

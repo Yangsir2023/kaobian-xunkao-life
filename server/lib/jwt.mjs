@@ -60,7 +60,12 @@ export function verifyAccessToken(token) {
   if (header.alg !== config.jwt.algorithm) throw fail(CODES.AUTH_TOKEN_INVALID, undefined, 401);
   if (payload.iss !== config.jwt.issuer) throw fail(CODES.AUTH_TOKEN_INVALID, undefined, 401);
   if (typeof payload.exp !== 'number' || payload.exp * 1000 <= Date.now()) {
-    throw fail(CODES.AUTH_TOKEN_INVALID, '登录状态已过期，请重新登录', 401);
+    const err = fail(CODES.AUTH_TOKEN_INVALID, '登录状态已过期，请重新登录', 401);
+    // 显式打标记。不要用 err.message.includes('过期') 判断 ——
+    // MESSAGES[1005] 的兜底文案是「登录状态无效或已过期」，本身含「过期」，
+    // 会让所有失败原因（签名不符等）都被误报成「已过期」。详见 errors.mjs。
+    err.expired = true;
+    throw err;
   }
   return payload;
 }

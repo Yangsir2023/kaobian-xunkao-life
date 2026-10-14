@@ -62,7 +62,15 @@ async function rawRequest(path, { method = 'GET', body, auth = true, timeoutMs =
     'X-Device-Name': encodeURIComponent(deviceNameGuess().slice(0, 60)),
   };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (auth && session.accessToken) headers.Authorization = `Bearer ${session.accessToken}`;
+  if (auth && session.accessToken) {
+    // 三通道并行下发，服务端会取第一个能被验过的：
+    //   1. Authorization     —— 标准做法，常规部署走它
+    //   2. X-Access-Token    —— 代理改写 Authorization 时的备选
+    //   3. xunkao_token Cookie —— 由 session.mjs 写入，部分托管平台的代理
+    //      既不转发 Authorization 也不转发自定义头，只有它和查询串能到达应用
+    headers.Authorization = `Bearer ${session.accessToken}`;
+    headers['X-Access-Token'] = session.accessToken;
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -181,6 +189,26 @@ export const api = {
   deleteReminder: (id) => request(`/api/reminders/${id}`, { method: 'DELETE' }),
   cloneReminder: (id) => request(`/api/reminders/${id}/clone`, { method: 'POST' }),
   summary: () => request('/api/reminders/stats/summary'),
+
+  /* ── 岗位库（留学生友好岗位） ── */
+  positionCatalogs: () => request('/api/positions/catalogs', { auth: false }),
+  positionPolicies: () => request('/api/positions/policies', { auth: false }),
+  positions: (query = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== null && value !== '') params.set(key, value);
+    }
+    const qs = params.toString();
+    // 默认带令牌：登录用户要能看到自己录入的岗位；游客无令牌时服务端按公共岗位返回
+    return request(`/api/positions${qs ? `?${qs}` : ''}`);
+  },
+  position: (id) => request(`/api/positions/${id}`),
+  createPosition: (payload) => request('/api/positions', { method: 'POST', body: payload }),
+  updatePosition: (id, payload) => request(`/api/positions/${id}`, { method: 'PATCH', body: payload }),
+  deletePosition: (id) => request(`/api/positions/${id}`, { method: 'DELETE' }),
+  importPositions: (positions) => request('/api/positions/import', { method: 'POST', body: { positions } }),
+  positionSummary: () => request('/api/positions/stats/summary', { auth: false }),
+
 
   me: () => request('/api/me'),
   devices: () => request('/api/me/devices'),

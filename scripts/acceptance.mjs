@@ -222,7 +222,7 @@ async function checkStorageIntegrity() {
     `${users.length} 个账号 · 样本前缀 ${probe?.passwordHash?.slice(0, 22) || 'n/a'}…`
   );
 
-  const collections = ['users', 'reminders', 'refresh_tokens', 'audit_logs', 'devices'];
+  const collections = ['users', 'reminders', 'positions', 'refresh_tokens', 'audit_logs', 'devices'];
   const existing = [];
   for (const name of collections) {
     try {
@@ -232,7 +232,7 @@ async function checkStorageIntegrity() {
       /* 集合不存在 */
     }
   }
-  record('五个集合均可读写（用户/提醒/刷新令牌/审计/设备）', existing.length === 5, existing.join(' / '));
+  record('六个集合均可读写（用户/提醒/岗位/刷新令牌/审计/设备）', existing.length === 6, existing.join(' / '));
 
   const runtimeInfo = { collections: existing };
   try {
@@ -319,6 +319,7 @@ function buildReport({ tests, contract, syntaxCount, staticInfo, storage, durati
   lines.push('| 用户/账号/令牌/审计云端存储 | `server/store/index.mjs`（local / cloudbase 双驱动） | 存储集合核查 + 驱动抽象 |');
   lines.push('| 公告截图云端存储 | `server/routes/uploads.mjs` | 上传/魔数校验/静态访问用例 |');
   lines.push('| 我的 / 安全记录（设备+日志+退出） | `public/js/pages/me.mjs` | 安全记录套件 9 条用例 |');
+  lines.push('| 留学生友好岗位库（筛选/三件套/报名数据/政策基线） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 23 条用例 |');
   lines.push('');
   lines.push('## 五、已知限制（诚实边界）');
   lines.push('');
@@ -326,7 +327,8 @@ function buildReport({ tests, contract, syntaxCount, staticInfo, storage, durati
   lines.push('2. **微信真实授权未联调**：`snsapi_login` 授权码流程已按官方文档实现（含 state 防 CSRF、一次性票据），但需要真实 AppID/AppSecret 与回调域名才能端到端验证；当前默认走 Mock 通道，界面明确标注。');
   lines.push('3. **未做浏览器端自动化（E2E）**：前端为原生 ES 模块，已通过语法校验 + 静态资源可达性 + 深链回退核查，补充验证建议使用 Playwright 跑一遍真实点击流程。');
   lines.push('4. **公共招考节点日期为参考值**：见 `server/official-nodes.mjs`，入库时 `verified=false`，界面有显式提示，实际以主管部门公告为准。');
-  lines.push('5. **限流为进程内实现**：单实例有效；多实例部署需替换为 Redis 计数器（接口已抽离，替换成本低）。');
+  lines.push('5. **岗位库种子含第三方整理数据**：5 条来自公考雷达等平台的真实样本（`dataLevel=thirdparty`，通常溯源到官方公告）、16 条为演示筛选逻辑构造的示例行（`dataLevel=sample`），界面均有 badge 与复核提示；项目不抓取、不推测、不补全缺失字段，报考前请以官方职位表复核。');
+  lines.push('6. **限流为进程内实现**：单实例有效；多实例部署需替换为 Redis 计数器（接口已抽离，替换成本低）。');
   lines.push('');
   lines.push('## 六、结论');
   lines.push('');

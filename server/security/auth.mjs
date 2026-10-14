@@ -239,6 +239,47 @@ export async function revokeAllSessions(userId, reason = '用户主动退出全�
   return count;
 }
 
+/**
+ * 收集本次请求中出现的所有候选访问令牌（按优先级排列，去重）。
+ *
+ * 为什么需要多个通道：部分托管平台的反向代理会对上游请求做头处理 ——
+ * 实测某云托管环境**会注入一个固定的 `Authorization` 头，同时不转发自定义头**。
+ * 结果是：客户端带来的令牌根本到不了应用，所有鉴权请求都判失败，
+ * 且无论客户端发什么，服务端看到的永远是代理塞进来的那个值。
+ *
+ * 因此这里做成「候选列表 + 逐个校验」（见 resolveIdentity）：
+ * 被注入的垃圾令牌验不过会被自动跳过，继续尝试后面的通道。
+ * 优先级：自定义头 → 标准 Authorization → 查询串 → Cookie。
+ */
+function accessTokenCandidates(ctx) {
+  const headers = ctx?.req?.headers || {};
+  const list = [];
+
+  const push = (value) => {
+    if (typeof value === 'string') {
+      const t = value.trim();
+      if (t && !list.includes(t)) list.push(t);
+    }
+  };
+
+  push(headers['x-access-token']);
+  push(bearerFromHeader(headers.authorization));
+
+  try {
+    push(ctx?.query?.get?.('access_token'));
+  } catch {
+    /* query 不可用时忽略 */
+  }
+
+  const cookie = headers.cookie;
+  if (typeof cookie === 'string') {
+    const hit = /(?:^|;\s*)xunkao_token=([^;]+)/.exec(cookie);
+    if (hit) push(decodeURIComponent(hit[1]));
+  }
+
+  return list;
+}
+
 /* ───────────────────────── 请求上下文鉴权 ───────────────────────── */
 
 /**
@@ -250,7 +291,7 @@ export async function revokeAllSessions(userId, reason = '用户主动退出全�
  * 需要鉴权的端点通过 requireAuth() 读取 error 并抛出原始错误码，语义不变。
  */
 export async function resolveIdentity(ctx) {
-  const token = bearerFromHeader(ctx.req.headers.authorization);
+  const candidates = accessTokenCandidates(ctx);
   const anonymous = (error = null) => ({
     user: null,
     session: null,
@@ -259,30 +300,55 @@ export async function resolveIdentity(ctx) {
     error,
   });
 
-  if (!token) return anonymous();
+  if (candidates.length === 0) return anonymous();
 
-  let payload;
-  try {
-    payload = verifyAccessToken(token);
-  } catch (err) {
-    return anonymous({
-      code: CODES.AUTH_TOKEN_INVALID,
-      message: err.message?.includes('过期') ? '登录状态已过期' : '登录状态无效',
-      status: 401,
-    });
+  // 逐个候选令牌校验，取第一个真正通过（签名 + 会话 + 账号状态）的。
+  // 这样即便代理注入了垃圾 Authorization，也会被跳过并命中后面的有效通道。
+  let failure = null;
+
+  for (const token of candidates) {
+    let payload;
+    try {
+      payload = verifyAccessToken(token);
+    } catch (err) {
+      // 优先保留「已过期」这个更有信息量的原因（真正的过期比签名错误更值得提示）
+      if (!failure || (err.expired && !failure.expired)) {
+        failure = {
+          code: CODES.AUTH_TOKEN_INVALID,
+          // 用显式标记判断，不靠文案匹配：MESSAGES[1005] 兜底文案本身含「过期」，
+          // 字符串匹配会把签名不符等全部误报成「已过期」（已修）。
+          message: err.expired ? '登录状态已过期' : '登录状态无效',
+          status: 401,
+          expired: Boolean(err.expired),
+        };
+      }
+      continue;
+    }
+
+    const session = await loadActiveSession(payload.sid);
+    if (!session || session.userId !== payload.sub) {
+      failure = failure || {
+        code: CODES.AUTH_REFRESH_REVOKED,
+        message: '会话已失效，请重新登录',
+        status: 401,
+      };
+      continue;
+    }
+
+    const user = await db.users().findById(payload.sub);
+    if (!user || user.status !== 'active') {
+      failure = failure || {
+        code: CODES.AUTH_USER_DISABLED,
+        message: '账号已被禁用',
+        status: 403,
+      };
+      continue;
+    }
+
+    return { user, session, role: user.role, authenticated: true, error: null, payload };
   }
 
-  const session = await loadActiveSession(payload.sid);
-  if (!session || session.userId !== payload.sub) {
-    return anonymous({ code: CODES.AUTH_REFRESH_REVOKED, message: '会话已失效，请重新登录', status: 401 });
-  }
-
-  const user = await db.users().findById(payload.sub);
-  if (!user || user.status !== 'active') {
-    return anonymous({ code: CODES.AUTH_USER_DISABLED, message: '账号已被禁用', status: 403 });
-  }
-
-  return { user, session, role: user.role, authenticated: true, error: null, payload };
+  return anonymous(failure);
 }
 
 export function requireAuth(ctx) {

@@ -87,10 +87,12 @@ export async function startTestServer() {
   // 导入公共节点，让验收脚本面向与线上一致的初始数据
   const { db } = await import('../server/store/index.mjs');
   const { importOfficialNodes } = await import('../server/official-nodes.mjs');
+  const { importPositionSeeds } = await import('../server/position-nodes.mjs');
   const { newId, nowIso } = await import('../server/lib/ids.mjs');
   const seedResult = await importOfficialNodes({ db, newId, nowIso });
+  const positionSeedResult = await importPositionSeeds({ db, newId, nowIso });
 
-  started = { server, baseUrl, tempDir, port, seedResult };
+  started = { server, baseUrl, tempDir, port, seedResult, positionSeedResult };
   return started;
 }
 

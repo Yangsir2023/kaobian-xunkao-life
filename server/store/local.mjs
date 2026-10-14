@@ -135,7 +135,7 @@ class LocalCollection {
 
 export function createLocalDriver(dataDir) {
   const dbDir = path.join(dataDir, 'db');
-  const collectionNames = ['users', 'reminders', 'refresh_tokens', 'audit_logs', 'devices'];
+  const collectionNames = ['users', 'reminders', 'positions', 'refresh_tokens', 'audit_logs', 'devices'];
 
   return {
     driver: 'local',

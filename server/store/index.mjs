@@ -38,6 +38,7 @@ export function getCollection(name) {
 export const db = {
   users: () => getCollection('users'),
   reminders: () => getCollection('reminders'),
+  positions: () => getCollection('positions'),
   refreshTokens: () => getCollection('refresh_tokens'),
   auditLogs: () => getCollection('audit_logs'),
   devices: () => getCollection('devices'),

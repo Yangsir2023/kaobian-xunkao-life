@@ -12,6 +12,7 @@ import { newId, nowIso } from './lib/ids.mjs';
 import { hashPassword } from './lib/password.mjs';
 import { ROLES } from './security/auth.mjs';
 import { importOfficialNodes, OFFICIAL_NODES } from './official-nodes.mjs';
+import { importPositionSeeds, SEED_POSITIONS, THIRDPARTY_DISCLAIMER } from './position-nodes.mjs';
 
 async function run() {
   const args = process.argv.slice(2);
@@ -23,6 +24,15 @@ async function run() {
   console.log(`[seed] 数据集共 ${OFFICIAL_NODES.length} 条公共节点`);
   const result = await importOfficialNodes({ db, newId, nowIso, reset });
   console.log(`[seed] 导入完成：新增 ${result.inserted} 条，跳过已存在 ${result.skipped} 条，库内合计 ${result.total} 条`);
+
+  const thirdpartyCount = SEED_POSITIONS.filter((p) => p.dataLevel === 'thirdparty').length;
+  console.log(
+    `[seed] 岗位库种子共 ${SEED_POSITIONS.length} 条` +
+      `（第三方整理 ${thirdpartyCount} 条 / 示例 ${SEED_POSITIONS.length - thirdpartyCount} 条）`
+  );
+  const posResult = await importPositionSeeds({ db, newId, nowIso, reset });
+  console.log(`[seed] 岗位导入完成：新增 ${posResult.inserted} 条，跳过已存在 ${posResult.skipped} 条，库内合计 ${posResult.total} 条`);
+  console.log(`[seed] 提示：${THIRDPARTY_DISCLAIMER}`);
 
   if (withDemo) {
     const username = 'demo';

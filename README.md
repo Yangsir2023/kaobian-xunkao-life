@@ -34,6 +34,10 @@
 | :---: | :---: | :---: |
 | ![编辑](docs/screenshots/04-editor.png) | ![登录](docs/screenshots/05-login.png) | ![我的](docs/screenshots/06-me.png) |
 
+| 岗位库列表 | 进面分数三件套 | 录入岗位（三件套 + 报名数据） |
+| :---: | :---: | :---: |
+| ![岗位库](docs/screenshots/07-positions.png) | ![三件套](docs/screenshots/11-position-score-triple.png) | ![录入](docs/screenshots/13-position-editor-result.png) |
+
 > 全部界面使用统一的 24×24 SVG 线性图标，**刻意不使用任何 Emoji**，保证跨系统渲染一致、观感干净。
 
 ---
@@ -70,6 +74,16 @@
 - 用户列表、角色调整（guest / user / admin）、账号启停。
 - 全量审计日志查询，精确到"谁在什么时候对谁做了什么"。
 
+### 8. 留学生友好岗位库
+面向留学生考公的选岗工具，回答三个问题：**哪些省我能报、哪些方向我能报、哪里分数低好上岸**。
+
+- **筛选维度**：32 个省级区域（31 省 + 中央机关）× 专业通道（计算机科学与技术 0812 / 硕士不限专业 / 两者皆可）× 开考比例（不设比例 / 有比例）× 应届要求 × 分数段（50 多分 / 低于 120 分）× 省份多选 × 关键词，一键套用「低分上岸组合」。
+- **进面分数三件套**：最低 / 最高 / 平均进面分数逐岗位呈现，卡片直接显示分数行，详情页给出「拿到满分百分之几就能进面」与分差解读。
+- **报名数据**：竞争比、报名人数、过审人数、缴费人数，直接反映上岸难度；支持数据来源与更新日期留痕。
+- **数据诚实四级**：`官方公告` / `第三方整理`（公考雷达等平台，通常溯源到官方公告）/ `示例数据`（演示筛选逻辑的占位行）/ `我录入的`，每级在界面有明确 badge 与说明，示例行不代表真实岗位。
+- **政策依据页**：留学回国人员应届身份认定（国考口径）、2026 年度国考三档笔试合格线（90 / 95 / 105）、艰苦边远地区倾斜、分省开考比例（附官方公告链接）、留学生专业复核到 0812 的操作路径。
+- **录入 / 批量导入**：官方职位表整理成 JSON 后一次性灌入（单次上限 200 条），或表单逐条录入；公共岗位游客可读，个人岗位仅本人与管理员可见。
+
 ---
 
 ## 快速开始
@@ -83,7 +97,7 @@ cd kaobian-xunkao-life
 # 1) 可选：复制环境变量样例（不复制也能跑，全用默认值）
 cp .env.example .env
 
-# 2) 导入 21 条公共招考节点（幂等，重复执行不会重复插入）
+# 2) 导入公共数据：21 条招考节点 + 21 条岗位库种子（幂等，重复执行不会重复插入）
 npm run seed
 
 # 3) 可选：顺带创建一个演示账号（密码随机生成且只打印一次）
@@ -96,7 +110,7 @@ npm start        # 或 npm run dev（文件变更自动重启）
 打开 <http://127.0.0.1:8787> 即可。**第一个注册的账号会自动成为管理员**，后续注册的都是普通用户。
 
 ```bash
-npm test         # 全量测试套件（53 个用例）
+npm test         # 全量测试套件（76 个用例）
 npm run acceptance   # 验收门禁，产出 acceptance/acceptance-report.md
 ```
 
@@ -108,11 +122,12 @@ npm run acceptance   # 验收门禁，产出 acceptance/acceptance-report.md
 | --- | --- | --- |
 | 运行时依赖 | **0** | 仅用 Node 内置模块；CloudBase SDK 为可选项 |
 | 构建步骤 | **0** | 原生 ES Module SPA，浏览器直接加载，无打包器 |
-| 源码规模 | **8,264 行 / 48 个文件** | 后端 3,759 行 · 前端 3,132 行 · 测试 990 行 |
-| API 路由 | **33 个** | 覆盖鉴权 / 提醒 / 个人 / 上传 / 管理五组 |
-| 测试用例 | **53 / 53 通过（100%）** | 鉴权 · 提醒 · 权限边界 · 安全记录四套 |
+| 源码规模 | **11,532 行 / 55 个文件** | 后端 5,356 行 · 前端 4,856 行 · 测试 1,320 行 |
+| API 路由 | **42 个** | 覆盖鉴权 / 提醒 / 岗位 / 个人 / 上传 / 管理六组 |
+| 测试用例 | **76 / 76 通过（100%）** | 鉴权 · 提醒 · 岗位库 · 权限边界 · 安全记录五套 |
 | 验收项 | **12 / 12 通过** | 结论 **GATE PASS** |
 | 预置招考节点 | **21 条 / 8 大类别** | 国考 5 · 军队文职 3 · 省考 3 · 其余各 2 |
+| 预置岗位行 | **21 条** | 第三方整理 5（公考雷达样本）· 示例 16（演示筛选逻辑） |
 | 口令存储 | `scrypt` N=16384, r=8, p=1 | 加盐逐账号独立，库中无明文亦无明文比对 |
 | 访问令牌时效 | 15 分钟 | HS256 签名，`timingSafeEqual` 恒时比对 |
 | 刷新令牌时效 | 30 天 | 不透明随机串，服务端只存 sha256，**轮换 + 重放检测** |
@@ -178,10 +193,10 @@ npm run acceptance   # 验收门禁，产出 acceptance/acceptance-report.md
 ## 接口一览
 
 响应统一为 `ApiResponse{code, message, data}`，`code !== 0` 即为业务错误。
-错误码按模块分段，便于排查：`1xxx` 鉴权 · `2xxx` 提醒 · `3xxx` 上传 · `4xxx` 权限 · `8xxx` 频控 · `9xxx` 系统。
+错误码按模块分段，便于排查：`1xxx` 鉴权 · `2xxx` 提醒 · `2010~2020` 岗位库 · `3xxx` 上传 · `4xxx` 权限 · `8xxx` 频控 · `9xxx` 系统。
 
 <details>
-<summary>展开全部 33 个路由</summary>
+<summary>展开全部 42 个路由</summary>
 
 **鉴权**
 | 方法 | 路径 | 说明 |
@@ -208,6 +223,19 @@ npm run acceptance   # 验收门禁，产出 acceptance/acceptance-report.md
 | DELETE | `/api/reminders/:id` | 删除 |
 | POST | `/api/reminders/:id/clone` | 克隆 |
 | GET | `/api/reminders/stats/summary` | 倒计时概览统计 |
+
+**岗位库（留学生友好）**
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/positions/catalogs` | 筛选目录：省份 / 专业通道 / 分数段 / 学历 / 数据级别 / 排序 |
+| GET | `/api/positions/policies` | 政策基线：留学生应届认定 / 国考合格线 / 分省开考比例（附来源链接） |
+| GET | `/api/positions` | 列表（省份多选、专业通道、开考比例、应届、分数段多选、分数上限、关键词、排序） |
+| GET | `/api/positions/:id` | 详情 |
+| POST | `/api/positions` | 录入岗位（登录用户） |
+| PATCH | `/api/positions/:id` | 修改（本人或管理员） |
+| DELETE | `/api/positions/:id` | 删除（本人或管理员） |
+| POST | `/api/positions/import` | 批量导入（单次上限 200 条） |
+| GET | `/api/positions/stats/summary` | 汇总统计（岗位页顶部卡片） |
 
 **个人与安全**
 | 方法 | 路径 | 说明 |
@@ -263,7 +291,7 @@ npm run acceptance   # 验收门禁，产出 acceptance/acceptance-report.md
 ## CloudBase 云端部署
 
 1. 在腾讯云开发控制台创建环境，拿到 `ENV_ID` 与密钥。
-2. 创建五个集合：`users`、`reminders`、`refresh_tokens`、`audit_logs`、`devices`（或通过 `CLOUDBASE_COLLECTION_PREFIX` 统一加前缀）。
+2. 创建六个集合：`users`、`reminders`、`positions`、`refresh_tokens`、`audit_logs`、`devices`（或通过 `CLOUDBASE_COLLECTION_PREFIX` 统一加前缀）。
 3. 安装可选依赖并切换驱动：
 
 ```bash
@@ -283,7 +311,7 @@ JWT_SECRET=<一段足够长的随机串>
 ## 测试与验收
 
 ```bash
-npm test              # 53 个用例
+npm test              # 76 个用例
 npm run acceptance    # 12 项门禁，写报告到 acceptance/acceptance-report.md
 ```
 
@@ -293,12 +321,13 @@ npm run acceptance    # 12 项门禁，写报告到 acceptance/acceptance-report
 | --- | --- |
 | 鉴权 | 注册/登录/校验/口令策略/刷新轮换/重放检测/退出 |
 | 提醒 | CRUD、克隆、筛选、分类统计、归属隔离、参数校验 |
+| 岗位库 | 筛选器全组合、进面分数三件套、报名数据校验、录入/导入/权限、数据级别 |
 | 权限边界 | 游客只读、跨用户越权拦截、管理接口拦截、防自锁死 |
 | 安全记录 | 设备列表、吊销生效、审计留痕、安全总览 |
 
 验收门禁额外校验：前后端接口契约一致性、前端模块语法、静态资源可达、SPA 深链回退、目录穿越拦截、响应不回吐口令、Emoji 零使用、口令哈希落库形态。
 
-**当前状态：测试 53/53、验收 12/12，结论 GATE PASS。**
+**当前状态：测试 76/76、验收 12/12，结论 GATE PASS。**
 
 ---
 
@@ -311,12 +340,14 @@ kaobian-xunkao-life/
 │  ├─ config.mjs            零依赖 .env 解析 + 密钥生成
 │  ├─ catalog.mjs           八大考试类别定义
 │  ├─ official-nodes.mjs    21 条公共招考节点（种子与测试共用）
+│  ├─ position-catalog.mjs  岗位库目录：省份 / 专业通道 / 分数段 / 政策基线（附官方链接）
+│  ├─ position-nodes.mjs    21 条岗位种子（第三方整理 5 + 示例 16）
 │  ├─ seed.mjs              幂等种子导入
 │  ├─ lib/                  错误码 / 口令 / JWT / 校验 / 频控 / ID
 │  ├─ security/             会话签发 / 刷新轮换 / RBAC / 审计
 │  ├─ providers/wechat.mjs  微信授权（真实 + Mock 双通道）
 │  ├─ store/                local / cloudbase 双驱动 + 统一门面
-│  └─ routes/               auth / reminders / me / uploads / admin
+│  └─ routes/               auth / reminders / positions / me / uploads / admin
 ├─ public/                  前端（原生 ESM，无构建）
 │  ├─ index.html
 │  ├─ css/app.css           设计系统（配色 / 间距 / 组件）
@@ -324,8 +355,8 @@ kaobian-xunkao-life/
 │     ├─ api.mjs            统一请求层（自动续期）
 │     ├─ session.mjs        会话存储 + 跨标签同步
 │     ├─ icons.mjs          24×24 SVG 图标集
-│     └─ pages/             9 个页面模块
-├─ tests/                   53 个用例（自研运行器）
+│     └─ pages/             10 个页面模块
+├─ tests/                   76 个用例（自研运行器）
 ├─ scripts/acceptance.mjs   验收门禁
 ├─ acceptance/              验收报告
 └─ docs/screenshots/        界面截图
@@ -340,6 +371,8 @@ kaobian-xunkao-life/
 - **微信登录默认是 Mock 通道**。它是完整的 OAuth2 授权码流程实现，但未配置 `WECHAT_APP_ID` 时走模拟档案，界面会明确标注"模拟授权"。接入真实公众号/网站应用只需填配置，无需改代码。
 - **`local` 驱动是单机文件存储**，适合个人使用与本地开发；多人并发写入场景请切到 `cloudbase`。
 - **21 条公共节点是人工整理的样例数据集**，用于演示分类与倒计时；招考日期每年变动，请以**公告原文链接**为准，本项目不替代官方信息源。
+- **岗位库种子分两类**：5 条「第三方整理」来自公考雷达等平台的真实样本（界面有 badge 与复核提示），16 条「示例数据」是为演示筛选逻辑构造的占位行，**均不构成报考依据**；真实岗位请用「录入岗位」或批量导入从官方职位表灌入。
+- 岗位库的进面分数与报名数据由用户或第三方平台录入，本项目只做呈现与筛选，**不抓取、不推测、不补全**缺失字段。
 - 上传功能默认限制单文件 3 MB，且本地驱动下文件落在 `data/uploads/`，生产环境建议接对象存储。
 - 界面按**移动端优先**设计，桌面端可用但未做专门的宽屏布局优化。
 

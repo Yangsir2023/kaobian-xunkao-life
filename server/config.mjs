@@ -75,7 +75,9 @@ const jwt = resolveJwtSecret();
 
 export const config = {
   port: num('PORT', 8787),
-  host: env('HOST', '127.0.0.1'),
+  // 默认绑定 0.0.0.0：容器 / 云托管 / 反向代理场景必须如此，
+  // 否则进程只监听回环地址，外部流量进不来（本地仍可用 127.0.0.1 访问）。
+  host: env('HOST', '0.0.0.0'),
   nodeEnv: env('NODE_ENV', 'development'),
   isProd: env('NODE_ENV', 'development') === 'production',
 
@@ -120,6 +122,7 @@ export const config = {
   collections: {
     users: 'users',
     reminders: 'reminders',
+    positions: 'positions',
     refreshTokens: 'refresh_tokens',
     auditLogs: 'audit_logs',
     devices: 'devices',

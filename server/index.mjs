@@ -15,12 +15,42 @@ import { resolveIdentity } from './security/auth.mjs';
 import { writeAudit, AUDIT_ACTIONS } from './security/audit.mjs';
 import { registerAuthRoutes } from './routes/auth.mjs';
 import { registerReminderRoutes } from './routes/reminders.mjs';
+import { registerPositionRoutes } from './routes/positions.mjs';
 import { registerMeRoutes } from './routes/me.mjs';
 import { registerUploadRoutes } from './routes/uploads.mjs';
 import { registerAdminRoutes } from './routes/admin.mjs';
 import { publicCategories } from './catalog.mjs';
+import { importOfficialNodes } from './official-nodes.mjs';
+import { importPositionSeeds } from './position-nodes.mjs';
+import { db } from './store/index.mjs';
+import { newId, nowIso } from './lib/ids.mjs';
 
 const PUBLIC_DIR = path.join(ROOT, 'public');
+
+/**
+ * 启动时确保公共种子存在（幂等）：
+ * 全新部署（云端沙箱、新克隆的仓库）数据库是空的，此时自动导入；
+ * 已有数据的环境只做一次计数检查，不重复写入。
+ * 导入失败不阻断启动——种子缺失时页面走空态，可随时 `npm run seed` 手动补齐。
+ */
+async function ensureSeedData() {
+  try {
+    const [nodeCount, positionCount] = await Promise.all([
+      db.reminders().count({ source: 'system' }),
+      db.positions().count({ source: 'system' }),
+    ]);
+    if (nodeCount === 0) {
+      const result = await importOfficialNodes({ db, newId, nowIso });
+      console.log(`[seed] 自动导入公共招考节点 ${result.inserted} 条`);
+    }
+    if (positionCount === 0) {
+      const result = await importPositionSeeds({ db, newId, nowIso });
+      console.log(`[seed] 自动导入岗位库种子 ${result.inserted} 条`);
+    }
+  } catch (err) {
+    console.warn(`[seed] 自动导入跳过：${err.message}`);
+  }
+}
 
 /**
  * 客户端把设备名做了 encodeURIComponent（HTTP 头只能是 Latin-1 字节串），
@@ -38,10 +68,12 @@ function decodeHeaderText(raw) {
 
 export async function buildServer() {
   await initStore();
+  await ensureSeedData();
 
   const router = createRouter();
   registerAuthRoutes(router);
   registerReminderRoutes(router);
+  registerPositionRoutes(router);
   registerMeRoutes(router);
   registerUploadRoutes(router);
   registerAdminRoutes(router);
