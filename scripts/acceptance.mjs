@@ -319,7 +319,7 @@ function buildReport({ tests, contract, syntaxCount, staticInfo, storage, durati
   lines.push('| 用户/账号/令牌/审计云端存储 | `server/store/index.mjs`（local / cloudbase 双驱动） | 存储集合核查 + 驱动抽象 |');
   lines.push('| 公告截图云端存储 | `server/routes/uploads.mjs` | 上传/魔数校验/静态访问用例 |');
   lines.push('| 我的 / 安全记录（设备+日志+退出） | `public/js/pages/me.mjs` | 安全记录套件 9 条用例 |');
-  lines.push('| 留学生友好岗位库（筛选/三件套/报名数据/政策基线/捡漏栏目） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 39 条用例（含捡漏五条件判定、政法类政审禁入、零报名实录核查、最佳推荐数据诚实约束） |');
+  lines.push('| 留学生友好岗位库（筛选/三件套/报名数据/政策基线/捡漏栏目） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 40 条用例（含捡漏五条件判定、政法类政审禁入、零报名实录核查、筛选标签容量下限、最佳推荐数据诚实约束） |');
   lines.push('| 准捡漏栏目（报名≈招录 + 无进面比 + 应届进面 + 分数持平） | `server/position-catalog.mjs#evaluateNearBargain`、`server/position-nodes.mjs#LOW_APPLY_POSITIONS`、`public/js/pages/positions.mjs` | 准捡漏筛选用例（nearBargain=1 只返回 hit/partial，五条件 + 三标记齐全）、低报名筛选用例（lowApply=1） |');
   lines.push('| 分数口径校准（总分 / 两科平均，官方合格线比对） | `server/position-catalog.mjs#SCORE_BASES/SCORE_CALIBRATION/YUNNAN_2026_SCORE_LINES`、`server/routes/positions.mjs#shapePosition` | 口径折算用例（53.35 → 总分 106.7、高出合格线 11.7）、低于合格线标记待核验用例、非法口径拒绝用例 |');
   lines.push('| 人才引进 QS 前 200 通道 + 低门槛考试清单（三支一扶/社区/西部计划） | `server/position-catalog.mjs#RENCAI_QS200_GUIDE/NO_RATIO_EXAMS`、`public/js/pages/positions.mjs#openBargainSheet` | 政策接口用例（地区清单逐条附来源、四类低门槛考试齐全） |');
@@ -333,7 +333,7 @@ function buildReport({ tests, contract, syntaxCount, staticInfo, storage, durati
   lines.push('2. **微信真实授权未联调**：`snsapi_login` 授权码流程已按官方文档实现（含 state 防 CSRF、一次性票据），但需要真实 AppID/AppSecret 与回调域名才能端到端验证；当前默认走 Mock 通道，界面明确标注。');
   lines.push('3. **浏览器端自动化只覆盖关键交互**：前端为原生 ES 模块，已通过语法校验 + 静态资源可达性 + 深链回退核查；关键交互另有零依赖的 CDP 冒烟脚本 `scripts/smoke-ui.mjs`（真实 Chrome 无头 + 真实鼠标事件，当前覆盖横向筛选标签条的拖动滑动、翻页按钮、滚动位置记忆，以及最佳推荐弹层的三板块内容渲染与 480px / 360px 两档窄屏无横向溢出，36 项断言）。其余表单流程仍是人工验证，需要更全面覆盖时建议补 Playwright。');
   lines.push('4. **公共招考节点日期为参考值**：见 `server/official-nodes.mjs`，入库时 `verified=false`，界面有显式提示，实际以主管部门公告为准。');
-  lines.push('5. **岗位库种子含第三方整理数据**：26 条来自公考雷达 / 中公 / 华图报名统计、湖南省人社厅 / 邵阳市人社局 / 郴州市人社局公示与人民网报道的真实样本（`dataLevel=thirdparty`，含 2026 国考 11 条零报名实录、4 条事业编取消实录与 6 条「报名≈招录」低报名取消/核减实录，逐行附来源与统计时间）、16 条为演示筛选逻辑构造的示例行（`dataLevel=sample`），界面均有 badge 与复核提示；项目不抓取、不推测、不补全缺失字段，报考前请以官方职位表复核。');
+  lines.push('5. **岗位库种子含第三方整理数据**：26 条来自公考雷达 / 中公 / 华图报名统计、湖南省人社厅 / 邵阳市人社局 / 郴州市人社局公示与人民网报道的真实样本（`dataLevel=thirdparty`，含 2026 国考 11 条零报名实录、4 条事业编取消实录与 6 条「报名≈招录」低报名取消/核减实录，逐行附来源与统计时间）、720 条为演示筛选逻辑构造的示例行（`dataLevel=sample`；其中 704 条由 `server/position-nodes.mjs#buildSampleGrid` 按「32 个省级区域 × 22 类岗位画像」确定性生成，纯粹为了让每个筛选标签都有足够条数，单位名用「某」占位、职位代码为演示编号、`sourceUrl` 强制置空，另有 16 条手写对照行用来说明「什么样会被筛掉」），界面均有 badge 与复核提示；项目不抓取、不推测、不补全缺失字段，报考前请以官方职位表复核。');
   lines.push('6. **捡漏判定是筛子不是预言**：五条件基于岗位行内已录入字段计算（`applicants===0` + 不设开考比例 + 专业对口 + 学历达标 + 非公安政法类），报名数据随时间变化，2027 国考报名窗口内需每日回官方渠道复核；政法类禁入判定依据《公安机关录用人民警察政治考察工作办法》（公通字〔2020〕11号）与各地报考指南口径，具体职位以公告备注为准。');
   lines.push('7. **限流为进程内实现**：单实例有效；多实例部署需替换为 Redis 计数器（接口已抽离，替换成本低）。');
   lines.push('8. **进面分为第三方口径，官方合格线需逐岗录入**：进面分数（最低/最高/平均）来自公考雷达等平台的整理数据，各平台口径不一（云南省考按两科平均百分制、国考按总分）；本应用用 `scoreBasis` 显式声明口径，并在详情页自动折算成总分与官方合格线比对，未录入合格线的行会提示「可在编辑里补上」。**「200 分只考 53.35」是口径误读**——53.35 是行测申论各 50% 的合成成绩，折合总分约 106.7，高于云南省 2026 县级机关合格线 95；校准说明见 `server/position-catalog.mjs#SCORE_CALIBRATION`。');

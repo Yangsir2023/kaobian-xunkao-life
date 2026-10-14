@@ -278,7 +278,13 @@ function listHtml() {
       `<div class="lowapply-banner mt-10">${icon('users', { size: 14 })}<div class="grow">低报名专区：报名人数不超过招录人数的 1.5 倍（或仅多两三个人）。报名人数缺失时按「竞争比 × 招录人数 → 过审 → 缴费」的顺序退用，口径会标在详情页。<b>保守口径</b>：只要行内任一可得的人数超出上限，就不算低报名——宁可少报，也不拿矛盾的数字凑数。</div></div>`
     );
   }
-  return `<div class="small muted" style="margin:2px 0 8px">共 ${state.rows.length} 条 · ${sortLabel}</div>
+  // 条数口径：接口返回的 stats.total 才是命中总数，state.rows 只是本页拿到的前 N 条
+  // （单页上限 100）。种子库有几百行时两者会不一样，必须分开写清楚，否则「共 100 条」
+  // 会被当成「只有 100 个岗位」。
+  const total = state.stats?.total ?? state.rows.length;
+  const shown = state.rows.length;
+  const pageHint = total > shown ? `（当前显示前 ${shown} 条，用筛选把范围缩小）` : '';
+  return `<div class="small muted" style="margin:2px 0 8px">共 ${total} 条${pageHint} · ${sortLabel}</div>
     ${banners.join('')}
     <div class="card-list">${state.rows.map(cardHtml).join('')}</div>`;
 }

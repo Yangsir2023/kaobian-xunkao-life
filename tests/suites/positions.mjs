@@ -170,6 +170,39 @@ export function positionSuite({ admin, user, baseUrl }) {
     assertEqual(withTriple.score, withTriple.scoreMin, 'score 与 scoreMin 应一致');
   });
 
+  s.test('筛选标签容量：每个标签都能落到 20 条以上（示例行撑起演示容量）', async () => {
+    const cats = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(cats.body.code, 0, '业务码');
+    const d = cats.body.data;
+
+    // 岗位页筛选标签条上的每一个标签，外加省份 / 考试类型 / 学历三个分组
+    const probes = [
+      ['majorTrack=cs0812', '计算机 0812'],
+      ['majorTrack=master_any', '硕士不限专业'],
+      ['ratioType=none', '不设开考比例'],
+      ['freshOnly=true', '仅限应届'],
+      ['band=low50', '50 多分'],
+      ['band=lt120', '低于 120 分'],
+      ['bargain=1', '捡漏'],
+      ['nearBargain=1', '准捡漏'],
+      ['lowApply=1', '低报名'],
+      ['majorTrack=cs0812&ratioType=none&freshOnly=true&band=lt120', '低分上岸组合（与前端 PRESET 一致）'],
+      ...d.examTypes.map((t) => [`examType=${t.key}`, `考试类型 ${t.short}`]),
+      ...d.degrees.map((g) => [`degree=${g.key}`, `学历 ${g.name}`]),
+      ...d.provinces.map((p) => [`province=${encodeURIComponent(p)}`, `省份 ${p}`]),
+    ];
+
+    const thin = [];
+    for (const [qs, label] of probes) {
+      const res = await admin.get(`/api/positions?limit=1&${qs}`, { token: null });
+      assertEqual(res.body.code, 0, `${label} 请求成功`);
+      const total = res.body.data.stats.total;
+      if (!(total >= 20)) thin.push(`${label}=${total}`);
+    }
+    assertEqual(thin.length, 0, `以下标签条数不足 20：${thin.join('、')}`);
+    assert(probes.length >= 45, `标签覆盖应足够全（当前 ${probes.length} 个）`);
+  });
+
   s.test('按专业方向筛选：计算机科学与技术（0812）', async () => {
     const res = await admin.get('/api/positions?majorTrack=cs0812', { token: null });
     assertEqual(res.body.code, 0, '业务码');
@@ -561,9 +594,17 @@ export function positionSuite({ admin, user, baseUrl }) {
     assertEqual(res.body.code, 0, '业务码');
     assert(res.body.data.count >= 4, '种子应含多条低报名行');
     assert(res.body.data.positions.every((p) => p.lowApply === true), '筛选结果必须全是低报名行');
+    // 种子有几百行、单页上限 200，两类证据的判定必须看全集：按 offset 翻完为止
+    const all = [];
+    for (let offset = 0; offset < 1000; offset += 200) {
+      const page = await admin.get(`/api/positions?lowApply=1&limit=200&offset=${offset}`, { token: null });
+      all.push(...page.body.data.positions);
+      if (all.length >= page.body.data.stats.lowApply || page.body.data.positions.length === 0) break;
+    }
+    assertEqual(all.length, res.body.data.stats.lowApply, '翻页应能取到全部低报名行');
     // 两类证据：公告明确未达比例（ratioShortfall）或报名规模推算（count）
-    const byShortfall = res.body.data.positions.filter((p) => p.lowApplyBasis === 'ratioShortfall');
-    const byCount = res.body.data.positions.filter((p) => p.lowApplyBasis === 'count');
+    const byShortfall = all.filter((p) => p.lowApplyBasis === 'ratioShortfall');
+    const byCount = all.filter((p) => p.lowApplyBasis === 'count');
     assert(byShortfall.length >= 1, '应有「公告明确未达开考比例」且无报名数字的公告级证据行');
     assert(byCount.length >= 3, '应有按报名规模推算的低报名行');
     assert(
@@ -577,15 +618,15 @@ export function positionSuite({ admin, user, baseUrl }) {
     assert(res.body.data.stats.lowApply >= 4, '统计应含低报名数');
     // 每行都要带完整的准捡漏五条件清单与三条标记，UI 才能逐条显示差在哪
     assert(
-      res.body.data.positions.every((p) => p.nearBargain && p.nearBargain.conditions.length === 5),
+      all.every((p) => p.nearBargain && p.nearBargain.conditions.length === 5),
       '低报名行应带准捡漏五条件清单'
     );
     assert(
-      res.body.data.positions.every((p) => p.nearBargain.marks.length === 3),
+      all.every((p) => p.nearBargain.marks.length === 3),
       '低报名行应带三条附加标记'
     );
     assert(
-      res.body.data.positions.some((p) => p.ratioType === 'ratio' && p.ratioFlexible === false),
+      all.some((p) => p.ratioType === 'ratio' && p.ratioFlexible === false),
       '应含「有比例且未标可开考」的真实样本——这正是「没有就标记一下」的场景'
     );
   });

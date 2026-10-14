@@ -147,7 +147,7 @@ async function main() {
       await cdp.send('Page.navigate', { url: `${BASE}/#${hash}` });
       await sleep(1600);
     };
-    /** 整页长图用 1x 采样，避免 42 张卡片压出 3MB 的 PNG */
+    /** 整页长图用 1x 采样，避免卡片多的时候压出几 MB 的 PNG */
     const setScale = (s) =>
       cdp.send('Emulation.setDeviceMetricsOverride', {
         width: 480,
@@ -155,9 +155,22 @@ async function main() {
         deviceScaleFactor: s,
         mobile: true,
       });
-    const shotLong = async (name) => {
-      await setScale(1);
-      await shot(cdp, name);
+    /**
+     * 列表长图：把视口临时拉高到 maxHeight 再按裁剪框截，最多保留「统计卡 + 筛选条 + 前几张卡片」。
+     * 整页截图（captureBeyondViewport）在岗位库有上百条种子时会截出几十 MB 的 PNG，
+     * 而截图是入库的，所以这里封顶。
+     */
+    const shotLong = async (name, maxHeight = 1500) => {
+      const pageHeight = await cdp.eval('document.documentElement.scrollHeight');
+      const height = Math.min(maxHeight, Math.max(960, pageHeight));
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: 480,
+        height,
+        deviceScaleFactor: 1,
+        mobile: true,
+      });
+      await sleep(400);
+      await shot(cdp, name, { clip: { x: 0, y: 0, width: 480, height, scale: 1 } });
       await setScale(2);
     };
     const click = async (selector) => {

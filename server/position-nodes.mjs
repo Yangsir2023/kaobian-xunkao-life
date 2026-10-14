@@ -13,12 +13,17 @@
  * LOW_APPLY_POSITIONS（三支一扶/社区工作者低报名核减实录，6 行）。
  * 带 officialScoreLine 的行已按官方公告核对合格线，scoreBasis 声明进面分口径（total / avg100）。
  *
+ * 示例种子分两组：SEED_POSITIONS 里手写的对照行（16 行，逐条演示某个筛选维度），
+ * 以及由 buildSampleGrid() 按「32 个省份 × 22 类岗位画像」批量生成的示例行
+ * （704 行，目的是让每个筛选标签都有足够条数，见文件末尾的说明）。
+ *
  * 真实的政策口径（合格分数线、开考比例规则、应届生身份认定、艰苦边远倾斜、捡漏五条件、
  * 留学生政审红线）不在这里，而在 position-catalog.mjs，逐条附官方来源链接。
  *
  * 真实岗位的录入路径：页面「录入岗位」按钮，或 POST /api/positions/import 批量导入，
  * 导入行 dataLevel='user'，与种子行在界面上有明确区分。
  */
+import { PROVINCES } from './position-catalog.mjs';
 
 export const POSITION_DISCLAIMER =
   '示例数据仅用于演示筛选逻辑，不代表真实招录岗位；请以各省人事考试网与职位表原文为准。';
@@ -30,27 +35,34 @@ export const THIRDPARTY_DISCLAIMER =
  * 幂等导入岗位库种子。
  * 与 importOfficialNodes 同一套幂等约定：按「省份 + 单位 + 岗位名」判重。
  * 行内自带 dataLevel 的（thirdparty 真实样本）按行的来，否则按示例数据处理。
+ *
+ * 性能：种子已有数百行（省份 × 岗位画像的批量示例行），逐行 insertOne 在
+ * 本地 JSON 驱动下会退化成「每插一行就重写一遍整个集合文件」。这里先把已存在
+ * 的判重键读进内存 Set，插入行攒成一个数组一次性 insertMany —— 只落盘一次。
  */
 export async function importPositionSeeds({ db, newId, nowIso, reset = false }) {
   if (reset) {
     await db.positions().deleteMany({ source: 'system', dataLevel: { $in: ['sample', 'thirdparty'] } });
   }
 
-  let inserted = 0;
+  const dedupKey = (doc) => `${doc.province}||${doc.unit}||${doc.title}`;
+  const landed = await db.positions().find({ source: 'system' });
+  const seen = new Set(landed.map(dedupKey));
+
+  const rows = [];
   let skipped = 0;
   for (const row of SEED_POSITIONS) {
-    const existing = await db
-      .positions()
-      .findOne({ source: 'system', province: row.province, unit: row.unit, title: row.title });
-    if (existing) {
+    const key = dedupKey(row);
+    if (seen.has(key)) {
       skipped += 1;
       continue;
     }
+    seen.add(key);
     const dataLevel = row.dataLevel || 'sample';
     // 不变量：示例行是演示构造值，绝不外链到任何真实省份网站（否则一个不相关的链接
     // 会被误读成「这条岗位有官方出处」）。第三方整理行与官方行才允许带 sourceUrl。
     const sourceUrl = dataLevel === 'sample' ? null : row.sourceUrl || null;
-    await db.positions().insertOne({
+    rows.push({
       id: newId('pos'),
       ownerId: null,
       source: 'system',
@@ -61,9 +73,10 @@ export async function importPositionSeeds({ db, newId, nowIso, reset = false }) 
       createdAt: nowIso(),
       updatedAt: nowIso(),
     });
-    inserted += 1;
   }
-  return { inserted, skipped, total: await db.positions().count({ source: 'system' }) };
+
+  if (rows.length) await db.positions().insertMany(rows);
+  return { inserted: rows.length, skipped, total: await db.positions().count({ source: 'system' }) };
 }
 
 /**
@@ -919,10 +932,154 @@ const LOW_APPLY_POSITIONS = [
   },
 ];
 
+/* ═══════════════════════════════════════════════════════════════
+   批量示例岗位（省份 × 岗位画像）
+   ─────────────────────────────────────────────────────────────
+   为什么有这一组：筛选标签（计算机 0812 / 硕士不限专业 / 不设开考比例 / 仅限应届 /
+   50 多分 / 低于 120 分 / 各省份）在只有几十条种子时，一点开就只剩个位数，
+   看不出筛选器到底在筛什么。这里按「32 个省份 × 22 类岗位画像」生成一批
+   岗位行，保证每个标签都能落到 20 条以上。
+
+   诚实边界（与其余示例行完全一致，绝不越线）：
+   - 不写 dataLevel → 导入时默认 'sample'，界面照常显示「示例」徽标与顶部数据边界提示；
+   - 单位名一律用「某」占位，职位代码是演示编号，进面分是演示值；
+   - 不写 sourceUrl → 导入时强制置 null，避免演示行被误读成「有官方出处」；
+   - notes 逐行注明「批量示例行」。
+   ═══════════════════════════════════════════════════════════════ */
+
+/** 专业方向的展示文案（与 position-catalog.mjs 的 MAJOR_TRACKS 口径保持一致） */
+const SAMPLE_MAJOR_TEXT = {
+  cs0812: '计算机科学与技术（0812）',
+  master_any: '硕士不限专业',
+  both: '计算机科学与技术（0812）/ 硕士不限专业',
+  other: '以职位表为准（其他专业方向）',
+};
+
+/** 满分口径对应的科目说明 */
+const SAMPLE_SCORE_NOTE = {
+  200: '行测 100 + 申论 100',
+  150: '公共基础知识 + 专业知识',
+  100: '职业能力倾向测验 + 综合应用能力',
+};
+
+const SAMPLE_EXAM_SHORT = {
+  guokao: '国考',
+  shengkao: '省考',
+  shiye: '事业编',
+  xuandiao: '选调生',
+  jundui: '军队文职',
+  sanzhiyifu: '三支一扶',
+  rencai: '人才引进',
+  shequ: '社区工作者',
+};
+
+/** 开考比例说明按「比例类型 + 考试类型」取，避免所有行共用一句话 */
+const SAMPLE_RATIO_TEXT = {
+  'none:shengkao': '艰苦边远地区县乡职位按实际缴费人数开考（不设开考比例）',
+  'none:shiye': '县乡事业单位岗位报名人数不足时按实际人数开考',
+  'none:xuandiao': '选调生按公告规定比例开考，不足时核减计划',
+  'none:sanzhiyifu': '三支一扶按公告规定开考，一般不限开考比例',
+  'none:shequ': '社区工作者按公告规定开考，未达比例时核减或合并岗位',
+  'ratio:guokao': '国考按职位表面试比例确定进面人选，笔试合格人数不足时公开调剂',
+  'ratio:shengkao': '按本省公告规定的笔试开考比例执行',
+  'ratio:shiye': '按当地事业单位公开招聘公告规定的开考比例执行',
+  'ratio:xuandiao': '按公告规定比例开考',
+  'ratio:jundui': '按军队文职人员公开招考公告规定的比例执行',
+  'ratio:sanzhiyifu': '按公告规定开考',
+  'ratio:rencai': '按当地人才引进公告规定的执行',
+  'ratio:shequ': '按公告规定的开考比例执行',
+};
+
+const isCentral = (p) => p === '中央机关';
+
+/**
+ * 22 类岗位画像。每个省份各跑一遍，因此每一项属性的最终条数 = 命中画像数 × 32。
+ * 画像里刻意混入「够不着」的对照行（如 131 分的热门税务岗、博士专项），
+ * 保证分数段与学历筛选是「筛得出、也排得掉」，而不是一筛就空。
+ */
+const SAMPLE_PROFILES = [
+  // ── 国考（4 类） ──
+  { examType: 'guokao', track: 'cs0812', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 118, scoreTotal: 200, planCount: 2, competition: 42, unit: (p) => (isCentral(p) ? '国家税务总局（本级）' : `${p}某市税务局`), title: '一级行政执法员（信息岗）' },
+  { examType: 'guokao', track: 'master_any', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 106, scoreTotal: 200, planCount: 1, competition: 27, scoreStable: true, unit: (p) => (isCentral(p) ? '国家税务总局（基层联系点）' : `${p}某县税务局`), title: '一级行政执法员（艰苦边远）' },
+  { examType: 'guokao', track: 'other', degree: 'bachelor', freshOnly: false, ratioType: 'ratio', score: 131, scoreTotal: 200, planCount: 2, competition: 88, unit: (p) => (isCentral(p) ? '国家统计局（本级）' : `国家统计局${p}调查总队`), title: '统计调查岗' },
+  { examType: 'guokao', track: 'other', degree: 'any', freshOnly: false, ratioType: 'ratio', score: 127, scoreTotal: 200, planCount: 3, competition: 64, approvedCount: 168, unit: (p) => (isCentral(p) ? '海关总署' : `${p}某海关隶属海关`), title: '海关业务岗' },
+
+  // ── 省考（6 类，含不设开考比例的艰苦边远县乡） ──
+  { examType: 'shengkao', track: 'master_any', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 112, scoreTotal: 200, planCount: 3, applicants: 4, paidCount: 3, freshInterview: true, unit: (p) => (isCentral(p) ? '中央机关直属单位（省考代招）' : `${p}某县人力资源和社会保障局`), title: '综合管理岗' },
+  { examType: 'shengkao', track: 'both', degree: 'master', freshOnly: false, ratioType: 'ratio', score: 108, scoreTotal: 200, planCount: 4, applicants: 9, unit: (p) => (isCentral(p) ? '中央机关直属单位（大数据）' : `${p}某市大数据管理局`), title: '数据管理岗' },
+  { examType: 'shengkao', track: 'other', degree: 'bachelor', freshOnly: false, ratioType: 'none', score: 98, scoreTotal: 200, planCount: 5, applicants: 5, unit: (p) => (isCentral(p) ? '中央机关直属单位（乡镇代招）' : `${p}某县乡镇机关（艰苦边远）`), title: '乡镇综合管理岗' },
+  { examType: 'shengkao', track: 'other', degree: 'any', freshOnly: false, ratioType: 'ratio', score: 116, scoreTotal: 200, planCount: 2, applicants: 21, unit: (p) => (isCentral(p) ? '中央机关直属单位（市场监管）' : `${p}某县市场监督管理局`), title: '行政执法岗' },
+  { examType: 'shengkao', track: 'other', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 104, scoreTotal: 200, planCount: 2, applicants: 12, unit: (p) => (isCentral(p) ? '中央机关直属单位（农业）' : `${p}某县农业农村局`), title: '农业技术推广岗' },
+  { examType: 'shengkao', track: 'other', degree: 'any', freshOnly: false, ratioType: 'ratio', score: 119, scoreTotal: 200, planCount: 2, applicants: 33, unit: (p) => (isCentral(p) ? '中央机关直属单位（应急管理）' : `${p}某市应急管理局`), title: '安全监管岗' },
+
+  // ── 事业单位（5 类，满分常见 100 / 150，50 多分即过半） ──
+  { examType: 'shiye', track: 'other', degree: 'master', freshOnly: false, ratioType: 'ratio', score: 71, scoreTotal: 100, planCount: 3, applicants: 18, unit: (p) => (isCentral(p) ? '中央机关直属事业单位（政务服务中心）' : `${p}某市政务服务中心`), title: '信息系统管理岗' },
+  { examType: 'shiye', track: 'cs0812', degree: 'master', freshOnly: true, ratioType: 'none', score: 57, scoreTotal: 100, planCount: 1, applicants: 0, ratioFlexible: true, scoreStable: true, unit: (p) => (isCentral(p) ? '中央机关直属事业单位（数据管理）' : `${p}某县政务服务和数据管理局`), title: '信息管理岗（县乡）' },
+  { examType: 'shiye', track: 'other', degree: 'doctor', freshOnly: false, ratioType: 'ratio', score: 62, scoreTotal: 100, planCount: 1, applicants: 6, unit: (p) => (isCentral(p) ? '中央机关直属科研事业单位' : `${p}某市农业科学研究院`), title: '科研岗（博士专项）' },
+  { examType: 'shiye', track: 'both', degree: 'master', freshOnly: false, ratioType: 'ratio', score: 66, scoreTotal: 100, planCount: 2, applicants: 11, unit: (p) => (isCentral(p) ? '中央机关直属事业单位（融媒体）' : `${p}某市融媒体中心`), title: '新媒体技术岗' },
+  { examType: 'shiye', track: 'other', degree: 'bachelor', freshOnly: true, ratioType: 'ratio', score: 74, scoreTotal: 150, planCount: 3, applicants: 15, unit: (p) => (isCentral(p) ? '中央机关直属事业单位（医院信息科）' : `${p}某县第一人民医院`), title: '信息科技术岗' },
+
+  // ── 选调生 / 军队文职（各 1 类） ──
+  { examType: 'xuandiao', track: 'master_any', degree: 'master', freshOnly: true, ratioType: 'none', score: 109, scoreTotal: 200, planCount: 6, applicants: 16, unit: (p) => (isCentral(p) ? '中央机关定向选调生（乡镇职位）' : `${p}选调生（乡镇职位）`), title: '选调生（乡镇职位）' },
+  { examType: 'jundui', track: 'other', degree: 'master', freshOnly: false, ratioType: 'ratio', score: 113, scoreTotal: 200, planCount: 2, applicants: 26, unit: (p) => `军队文职人员（${p}某部）`, title: '工程技术岗' },
+
+  // ── 三支一扶（2 类，含零报名的不设比例岗位） ──
+  { examType: 'sanzhiyifu', track: 'master_any', degree: 'any', freshOnly: true, ratioType: 'none', score: 55, scoreTotal: 100, planCount: 1, applicants: 0, freshInterview: true, unit: (p) => (isCentral(p) ? '中央机关直属单位（支教服务）' : `${p}某县三支一扶（支教）`), title: '支教服务' },
+  { examType: 'sanzhiyifu', track: 'other', degree: 'bachelor', freshOnly: false, ratioType: 'ratio', score: 58, scoreTotal: 100, planCount: 2, applicants: 2, paidCount: 2, unit: (p) => (isCentral(p) ? '中央机关直属单位（支农服务）' : `${p}某县三支一扶（支农）`), title: '支农服务' },
+
+  // ── 人才引进 / 社区工作者（各 1 与 2 类） ──
+  { examType: 'rencai', track: 'master_any', degree: 'doctor', freshOnly: false, ratioType: 'ratio', score: 68, scoreTotal: 100, planCount: 5, applicants: 9, unit: (p) => (isCentral(p) ? '中央机关直属单位（人才引进·博士专项）' : `${p}某市人才引进（博士专项）`), title: '人才引进岗（博士专项）' },
+  { examType: 'shequ', track: 'master_any', degree: 'bachelor', freshOnly: false, ratioType: 'none', score: 61, scoreTotal: 100, planCount: 2, applicants: 2, ratioShortfall: true, ratioFlexible: true, scoreStable: true, unit: (p) => (isCentral(p) ? '中央机关直属单位（社区工作者）' : `${p}某街道社区工作者`), title: '社区工作者' },
+  { examType: 'shequ', track: 'other', degree: 'any', freshOnly: false, ratioType: 'ratio', score: 88, scoreTotal: 150, planCount: 4, applicants: 31, unit: (p) => (isCentral(p) ? '中央机关直属单位（社区网格）' : `${p}某社区网格化管理中心`), title: '网格管理员' },
+];
+
+/**
+ * 按「省份 × 画像」铺开。职位代码用省份序号与画像序号的确定性组合，
+ * 保证同一次构建里不重复、可复现（不做随机，免得每次重启数据都在变）。
+ */
+function buildSampleGrid() {
+  const rows = [];
+  PROVINCES.forEach((province, pi) => {
+    SAMPLE_PROFILES.forEach((profile, gi) => {
+      const place = isCentral(province) ? '中央机关' : province;
+      rows.push({
+        province,
+        examType: profile.examType,
+        year: profile.examType === 'xuandiao' ? 2027 : 2026,
+        unit: profile.unit(province),
+        title: profile.title,
+        positionCode: String(300000000000 + pi * 1000000 + gi * 1000 + 1).slice(0, 12),
+        majorTrack: profile.track,
+        majorText: SAMPLE_MAJOR_TEXT[profile.track],
+        degree: profile.degree,
+        freshOnly: profile.freshOnly,
+        ratioType: profile.ratioType,
+        ratioText: SAMPLE_RATIO_TEXT[`${profile.ratioType}:${profile.examType}`],
+        score: profile.score,
+        scoreTotal: profile.scoreTotal,
+        scoreNote: SAMPLE_SCORE_NOTE[profile.scoreTotal],
+        competition: profile.competition ?? null,
+        applicants: profile.applicants ?? null,
+        approvedCount: profile.approvedCount ?? null,
+        paidCount: profile.paidCount ?? null,
+        planCount: profile.planCount,
+        ratioFlexible: profile.ratioFlexible === true,
+        freshInterview: profile.freshInterview === true,
+        scoreStable: profile.scoreStable === true,
+        ratioShortfall: profile.ratioShortfall === true,
+        policePosition: false,
+        notes: `批量示例行（${place} · ${SAMPLE_EXAM_SHORT[profile.examType]}）：单位、职位代码与进面分均为演示占位值，用于撑起筛选器容量，非真实招录岗位。`,
+      });
+    });
+  });
+  return rows;
+}
+
 export const SEED_POSITIONS = [
   ...THIRDPARTY_POSITIONS,
   ...ZERO_APPLY_POSITIONS,
   ...LOW_APPLY_POSITIONS,
+  ...buildSampleGrid(),
 
   /* ── 国考 · 艰苦边远地区（合格线 90 分，低于 120 分） ── */
   {
