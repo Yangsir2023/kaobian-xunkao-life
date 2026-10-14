@@ -1,12 +1,13 @@
 /**
  * 岗位库页 · 留学生友好岗位
  *
- * 回答三个问题：
+ * 回答四个问题：
  *   1) 哪些省我能报？        —— 省份筛选 + 分省政策基线
  *   2) 哪些方向我能报？      —— 计算机科学与技术（0812）/ 硕士不限专业
  *   3) 哪里分数低好上岸？    —— 不设开考比例 + 仅限应届 + 上岸分 50 多分或低于 120 分
+ *   4) 哪里能捡漏？          —— 捡漏栏目：无人报考 + 不设开考比例 + 我能报 + 政审安全，五条全中才圈出来
  *
- * 数据诚实边界：种子行一律标记「示例」，界面用 badge 明示；
+ * 数据诚实边界：种子行一律标记「示例」或「第三方」，界面用 badge 明示；
  * 真实岗位由用户「录入岗位」或批量导入产生，标记「我的」。
  */
 import { api } from '../api.mjs';
@@ -28,6 +29,7 @@ const state = {
   bands: [],
   maxScore: '',
   query: '',
+  bargain: '',
   sort: 'score_asc',
   loading: false,
 };
@@ -48,6 +50,7 @@ export default {
       title: '留学生友好岗位库',
       subtitle: '按省份筛可报方向，找不设开考比例的低分上岸岗',
       actions: [
+        { key: 'bargain', icon: 'star', label: '捡漏攻略', onClick: () => openBargainSheet() },
         { key: 'policy', icon: 'book', label: '政策依据', onClick: () => openPolicySheet() },
         { key: 'add', icon: 'plus', label: '录入岗位', onClick: () => openEditorSheet() },
       ],
@@ -82,6 +85,7 @@ async function loadList() {
   if (state.bands.length) params.band = state.bands.join(',');
   if (state.maxScore !== '') params.maxScore = state.maxScore;
   if (state.query) params.q = state.query;
+  if (state.bargain) params.bargain = '1';
 
   const data = await api.positions(params);
   state.rows = data.positions;
@@ -100,12 +104,13 @@ function shellHtml() {
 }
 
 function statsHtml() {
-  const s = state.stats || { total: 0, lowScore: 0, noRatio: 0, freshOnly: 0, provinces: 0 };
+  const s = state.stats || { total: 0, lowScore: 0, noRatio: 0, freshOnly: 0, provinces: 0, bargain: 0, zeroApply: 0 };
   return `<div class="stat-strip">
     <div class="stat-cell"><div class="stat-value">${s.total}</div><div class="stat-label">岗位</div></div>
     <div class="stat-cell"><div class="stat-value is-soon">${s.lowScore}</div><div class="stat-label">低分上岸</div></div>
     <div class="stat-cell"><div class="stat-value is-ok">${s.noRatio}</div><div class="stat-label">不设比例</div></div>
     <div class="stat-cell"><div class="stat-value">${s.freshOnly}</div><div class="stat-label">仅限应届</div></div>
+    <div class="stat-cell"><div class="stat-value is-bargain">${s.bargain ?? 0}</div><div class="stat-label">捡漏命中</div></div>
     <div class="stat-cell"><div class="stat-value">${s.provinces}</div><div class="stat-label">覆盖省份</div></div>
   </div>`;
 }
@@ -114,6 +119,10 @@ function filterHtml() {
   const cat = state.catalogs;
   return `
     <div class="chip-scroll mt-10">
+      <button class="chip chip-bargain ${state.bargain ? 'is-active' : ''}" data-bargain="1">
+        ${icon('star', { size: 13, className: 'icon icon-sm' })}捡漏专区
+      </button>
+      <button class="chip" data-guide="1">${icon('signpost', { size: 13, className: 'icon icon-sm' })}捡漏攻略</button>
       <button class="chip ${state.majorTrack === PRESET.majorTrack && state.ratioType === PRESET.ratioType && state.freshOnly === PRESET.freshOnly && state.bands.includes('lt120') ? 'is-active' : ''}" data-preset="1">
         ${icon('spark', { size: 13, className: 'icon icon-sm' })}低分上岸组合
       </button>
@@ -147,7 +156,8 @@ function hasFilter() {
     Boolean(state.freshOnly) ||
     state.bands.length > 0 ||
     state.maxScore !== '' ||
-    Boolean(state.query)
+    Boolean(state.query) ||
+    Boolean(state.bargain)
   );
 }
 
@@ -165,6 +175,15 @@ function noticeHtml() {
 function listHtml() {
   if (state.loading) return skeleton();
   if (!state.rows.length) {
+    if (state.bargain) {
+      return emptyState({
+        iconName: 'star',
+        title: '当前没有命中捡漏五条件的岗位',
+        desc: '五条件 = 无人报考 + 不设开考比例 + 专业对口 + 学历达标 + 留学生政审安全。2026 国考 89 个挂零职位逐一核对后无一全中——原因与实时捡漏方法见「捡漏攻略」。',
+        actionLabel: '打开捡漏攻略',
+        actionId: 'empty-guide',
+      });
+    }
     return emptyState({
       iconName: 'filter',
       title: '没有符合条件的岗位',
@@ -174,7 +193,11 @@ function listHtml() {
     });
   }
   const sortLabel = state.catalogs.sorts.find((s) => s.key === state.sort)?.label || '';
+  const bargainNote = state.bargain
+    ? `<div class="bargain-banner mt-10">${icon('star', { size: 14 })}<div class="grow">捡漏专区：以下岗位五条件全中（无人报考 + 不设开考比例 + 专业对口 + 学历达标 + 政审安全）。数据截至各行的「数据更新日期」，报名窗口内请每日回官方渠道复核。</div></div>`
+    : '';
   return `<div class="small muted" style="margin:2px 0 8px">共 ${state.rows.length} 条 · ${sortLabel}</div>
+    ${bargainNote}
     <div class="card-list">${state.rows.map(cardHtml).join('')}</div>`;
 }
 
@@ -185,9 +208,11 @@ function skeleton() {
 function cardHtml(row) {
   const bands = row.scoreBands || [];
   const hasMax = row.scoreMax != null;
-  return `<article class="pos-card" data-id="${row.id}">
+  const bargain = row.bargain || { hit: false };
+  return `<article class="pos-card ${bargain.hit ? 'is-bargain' : ''}" data-id="${row.id}">
     <div class="pos-head">
       <span class="pos-province">${escapeHtml(row.province)}</span>
+      ${bargain.hit ? `<span class="bargain-badge">${icon('star', { size: 12, className: 'icon icon-sm' })}捡漏</span>` : ''}
       <span class="badge badge-outline">${escapeHtml(row.examTypeName)}</span>
       <span class="badge" style="background:${row.dataLevelAccent};color:${row.dataLevelColor}">${escapeHtml(row.dataLevelName)}</span>
       ${row.freshOnly ? '<span class="badge badge-success">应届</span>' : ''}
@@ -205,6 +230,8 @@ function cardHtml(row) {
       <span class="pos-tag is-plain">${escapeHtml(row.degreeName)}</span>
       ${bands.includes('low50') ? '<span class="pos-tag is-low">50 多分</span>' : ''}
       ${bands.includes('lt120') ? '<span class="pos-tag is-low">低于 120 分</span>' : ''}
+      ${row.applicants === 0 ? '<span class="pos-tag is-zero">零报名</span>' : ''}
+      ${row.policePosition ? '<span class="pos-tag is-police">政法类 · 留学生禁入</span>' : ''}
       ${row.competition ? `<span class="pos-tag is-plain">竞争比 ${row.competition}:1</span>` : ''}
     </div>
     ${
@@ -248,6 +275,34 @@ function applyBlockHtml(row) {
   </div>`;
 }
 
+/** 捡漏条件核对：五条逐项对错标记，全中才值得报；政法类职位给出政审警告 */
+function bargainBlockHtml(row) {
+  const bargain = row.bargain || { hit: false, conditions: [] };
+  if (!bargain.conditions.length) return '';
+  const miss = bargain.conditions.filter((c) => !c.ok).length;
+  const conds = bargain.conditions
+    .map(
+      (c) => `<div class="bargain-cond ${c.ok ? 'is-ok' : 'is-off'}">
+        <span class="bargain-cond-mark">${c.ok ? icon('check', { size: 13 }) : icon('close', { size: 13 })}</span>
+        <div class="grow">
+          <div class="bargain-cond-label">${escapeHtml(c.label)}</div>
+          <div class="tiny muted">${escapeHtml(c.hint)}</div>
+        </div>
+      </div>`
+    )
+    .join('');
+  return `<div class="section-head mt-14">
+      <h2 class="section-title">捡漏条件核对</h2>
+      <span class="section-hint">${bargain.hit ? '五条全中' : `还差 ${miss} 条`}</span>
+    </div>
+    <div class="bargain-cond-list">${conds}</div>
+    ${
+      row.policePosition
+        ? `<div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow"><b>公安政法类职位（人民警察）</b>：非公派原因曾六个月以上在国（境）外留学、工作、生活的不得报考（《公安机关录用人民警察政治考察工作办法》公通字〔2020〕11号及各地报考指南口径）。自费留学一年以上基本中招，专业再对口也不构成捡漏。</div></div>`
+        : ''
+    }`;
+}
+
 /* ───────────────── 交互 ───────────────── */
 
 function bind(root) {
@@ -280,6 +335,17 @@ function bind(root) {
       state.bands = state.bands.includes(key) ? state.bands.filter((b) => b !== key) : [...state.bands, key];
       await rerender(root);
     });
+  });
+
+  root.querySelectorAll('[data-bargain]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      state.bargain = state.bargain ? '' : '1';
+      await rerender(root);
+    });
+  });
+
+  root.querySelectorAll('[data-guide]').forEach((btn) => {
+    btn.addEventListener('click', () => openBargainSheet());
   });
 
   root.querySelectorAll('[data-province]').forEach((btn) => {
@@ -328,6 +394,11 @@ function bind(root) {
     });
   }
 
+  const emptyGuide = root.querySelector('#empty-guide');
+  if (emptyGuide) {
+    emptyGuide.addEventListener('click', () => openBargainSheet());
+  }
+
   const moreBtn = root.querySelector('[data-open-filter]');
   if (moreBtn) moreBtn.addEventListener('click', () => openFilterSheet(root));
 
@@ -346,6 +417,7 @@ function resetFilters() {
   state.bands = [];
   state.maxScore = '';
   state.query = '';
+  state.bargain = '';
 }
 
 async function rerender(root) {
@@ -468,6 +540,7 @@ async function openDetailSheet(id) {
       <div class="detail-hero" style="--accent:${row.examTypeColor}">
         <div class="row">
           <span class="badge" style="background:${row.dataLevelAccent};color:${row.dataLevelColor}">${escapeHtml(row.dataLevelName)}</span>
+          ${row.bargain?.hit ? `<span class="badge badge-bargain">${icon('star', { size: 12, className: 'icon icon-sm' })}捡漏</span>` : ''}
           ${row.freshOnly ? '<span class="badge badge-success">仅限应届</span>' : ''}
           <span class="badge badge-outline">${escapeHtml(row.ratioTypeName)}</span>
           ${row.competition ? `<span class="badge badge-outline">竞争比 ${row.competition}:1</span>` : ''}
@@ -482,6 +555,7 @@ async function openDetailSheet(id) {
       </div>
 
       ${applyBlockHtml(row)}
+      ${bargainBlockHtml(row)}
 
       <div class="section-head mt-14">
         <h2 class="section-title">进面分数线</h2>
@@ -527,6 +601,7 @@ async function openDetailSheet(id) {
         <div class="kv"><div class="kv-key">学历层次</div><div class="kv-val">${escapeHtml(row.degreeName)}</div></div>
         <div class="kv"><div class="kv-key">开考比例</div><div class="kv-val">${escapeHtml(row.ratioText || row.ratioTypeName)}</div></div>
         <div class="kv"><div class="kv-key">应届要求</div><div class="kv-val">${row.freshOnly ? '仅限应届高校毕业生' : '不限应届'}</div></div>
+        ${row.policePosition ? '<div class="kv"><div class="kv-key">职位性质</div><div class="kv-val">公安政法类（人民警察）<div class="tiny muted mt-6">留学生政审禁入：非公派原因曾六个月以上在国（境）外留学、工作、生活的不得报考</div></div></div>' : ''}
         <div class="kv"><div class="kv-key">数据级别</div><div class="kv-val">${escapeHtml(cat.dataLevels.find((d) => d.key === row.dataLevel)?.desc || '')}</div></div>
       </div>
 
@@ -740,6 +815,13 @@ function openEditorSheet(existing = null) {
         </label>
       </div>
       <div class="field">
+        <label class="row" style="gap:8px;cursor:pointer">
+          <input type="checkbox" id="p-police" ${v.policePosition ? 'checked' : ''} />
+          <span class="small">公安政法类职位（边检 / 缉私 / 移民 / 监狱 / 司法警察等人民警察职位）</span>
+        </label>
+        <div class="field-hint mt-6">人民警察职位对留学生有禁入条款：非公派原因曾六个月以上在国（境）外留学、工作、生活的不得报考。勾选后捡漏判定会自动把它标为留学生不宜报。</div>
+      </div>
+      <div class="field">
         <div class="field-label">来源链接</div>
         <input class="input" id="p-url" placeholder="公告或职位表链接" value="${escapeHtml(v.sourceUrl || '')}" />
       </div>
@@ -775,6 +857,7 @@ function openEditorSheet(existing = null) {
           majorText: body.querySelector('#p-majortext').value.trim(),
           degree: body.querySelector('#p-degree').value,
           freshOnly: body.querySelector('#p-fresh').checked,
+          policePosition: body.querySelector('#p-police').checked,
           ratioType: body.querySelector('#p-ratio').value,
           ratioText: body.querySelector('#p-ratiotext').value.trim(),
           // score 字段是旧版单值口径，现在统一以 scoreMin 为权威，显式置空避免旧值遮挡
@@ -821,6 +904,90 @@ function openEditorSheet(existing = null) {
         }
       });
     },
+  });
+}
+
+/* ───────────────── 捡漏攻略弹层 ───────────────── */
+
+function openBargainSheet() {
+  const guide = state.catalogs?.bargainGuide;
+  if (!guide) {
+    toast('攻略数据加载中，请稍后重试');
+    return;
+  }
+  const { window: win, conditions, policeBar, noResume, zeroTip } = guide;
+
+  openSheet({
+    title: '捡漏攻略',
+    subtitle: '没人报 + 我能报 + 考得起，三条同时成立才叫捡漏',
+    content: `
+      <div class="notice notice-info">${icon('info', { size: 16 })}<div class="grow">${escapeHtml(guide.intro)}</div></div>
+
+      <div class="filter-group mt-14">
+        <div class="filter-group-title">一、实时报名窗口（${escapeHtml(win.title)}）</div>
+        <div class="kv-list">
+          <div class="kv"><div class="kv-key">报名开始</div><div class="kv-val num">${escapeHtml(win.registerStart)}</div></div>
+          <div class="kv"><div class="kv-key">报名截止</div><div class="kv-val num">${escapeHtml(win.registerEnd)}</div></div>
+          <div class="kv"><div class="kv-key">注册认证截止</div><div class="kv-val num">${escapeHtml(win.authDeadline)}</div></div>
+          <div class="kv"><div class="kv-key">笔试</div><div class="kv-val num">${escapeHtml(win.examDate)}</div></div>
+          <div class="kv"><div class="kv-key">招录规模</div><div class="kv-val">${escapeHtml(win.planTotal)} · ${escapeHtml(win.planFresh)}</div></div>
+          <div class="kv"><div class="kv-key">年龄口径</div><div class="kv-val">${escapeHtml(win.ageRule)}</div></div>
+          <div class="kv"><div class="kv-key">基层经历</div><div class="kv-val">${escapeHtml(win.baseRule)}</div></div>
+        </div>
+        <div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow">${escapeHtml(win.authNote)}。</div></div>
+        <a class="link-out small" href="${escapeHtml(win.sourceUrl)}" target="_blank" rel="noopener">
+          ${icon('external', { size: 13, className: 'icon icon-sm' })}${escapeHtml(win.sourceName)}
+        </a>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">二、捡漏五条件（本应用的判定口径）</div>
+        <ul class="policy-list">
+          ${conditions.map((c, i) => `<li><b>${i + 1}. ${escapeHtml(c.label)}</b>——${escapeHtml(c.hint)}</li>`).join('')}
+        </ul>
+        <div class="small muted mt-6">五条全中才会被「圈出来」；详情页逐条展示对错标记，差几条一目了然。</div>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">三、${escapeHtml(policeBar.title)}</div>
+        <div class="note-box">${escapeHtml(policeBar.quote)}</div>
+        <ul class="policy-list mt-6">
+          ${policeBar.points.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
+        </ul>
+        <div class="tiny muted mt-6">适用范围：${escapeHtml(policeBar.scope)}</div>
+        <a class="link-out small" href="${escapeHtml(policeBar.sourceUrl)}" target="_blank" rel="noopener">
+          ${icon('external', { size: 13, className: 'icon icon-sm' })}${escapeHtml(policeBar.sourceName)}
+        </a>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">四、${escapeHtml(noResume.title)}</div>
+        <ul class="policy-list">
+          ${noResume.points.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
+        </ul>
+        <a class="link-out small" href="${escapeHtml(noResume.sourceUrl)}" target="_blank" rel="noopener">
+          ${icon('external', { size: 13, className: 'icon icon-sm' })}${escapeHtml(noResume.sourceName)}
+        </a>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">五、${escapeHtml(zeroTip.title)}</div>
+        <div class="note-box">${escapeHtml(zeroTip.stats)}</div>
+        <ul class="policy-list mt-6">
+          ${zeroTip.lessons.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
+        </ul>
+        <a class="link-out small" href="${escapeHtml(zeroTip.sourceUrl)}" target="_blank" rel="noopener">
+          ${icon('external', { size: 13, className: 'icon icon-sm' })}${escapeHtml(zeroTip.sourceName)}
+        </a>
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">六、报名窗口内怎么盯</div>
+        <ul class="policy-list">
+          ${win.trackTips.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
+        </ul>
+      </div>
+    `,
   });
 }
 

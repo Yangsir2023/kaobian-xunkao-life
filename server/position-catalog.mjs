@@ -203,6 +203,126 @@ export const APPLY_FIELDS = [
   { key: 'paidCount', name: '缴费人数', hint: '完成缴费的人数，通常等于实际参考人数' },
 ];
 
+/* ═══════════════════════════════════════════════════════════════
+   捡漏栏目：五条件判定 + 实时窗口 + 政审红线 + 2026 实录
+   判定逻辑前后端共用（后端 shapePosition 与筛选，前端逐条展示 ✓/✗）
+   ═══════════════════════════════════════════════════════════════ */
+
+/**
+ * 捡漏五条件——全部命中才值得「圈出来」：
+ *   zeroApplicants  报名人数为 0：没人报的岗位才谈得上捡漏
+ *   noRatio         不设开考比例：按实际缴费人数开考，人少也照考，不会因报名不足被核减取消
+ *   trackOk         专业对口：0812 或硕士不限专业
+ *   degreeOk        学历达标：岗位要硕士或不限学历
+ *   returneeSafe    留学生政审安全：非公安政法类职位（见 RETURNEE_POLICE_BAR）
+ */
+export const BARGAIN_CONDITIONS = [
+  { key: 'zeroApplicants', label: '无人报考', hint: '报名人数为 0——没人报的岗位才谈得上捡漏' },
+  { key: 'noRatio', label: '不设开考比例', hint: '按实际缴费人数开考，人少也能考，不会因报名不足被核减或取消' },
+  { key: 'trackOk', label: '专业对口', hint: '计算机科学与技术（0812）或硕士不限专业' },
+  { key: 'degreeOk', label: '学历达标', hint: '岗位要求硕士或不限学历' },
+  { key: 'returneeSafe', label: '留学生政审安全', hint: '非公安政法类职位——该类职位含六个月以上境外经历禁入条款，专业再对口也报不了' },
+];
+
+/** 判断一条岗位是否命中某个捡漏条件（容错老数据：缺字段按不命中处理） */
+export function matchBargainCondition(key, doc) {
+  if (key === 'zeroApplicants') return doc.applicants === 0;
+  if (key === 'noRatio') return doc.ratioType === 'none';
+  if (key === 'trackOk') return ['cs0812', 'master_any', 'both'].includes(doc.majorTrack);
+  if (key === 'degreeOk') return ['master', 'any'].includes(doc.degree);
+  if (key === 'returneeSafe') return !doc.policePosition;
+  return false;
+}
+
+/** 五条全中才算「捡漏」；conditions 逐条带 ok，UI 用来展示差在哪 */
+export function evaluateBargain(doc) {
+  const conditions = BARGAIN_CONDITIONS.map((c) => ({ ...c, ok: matchBargainCondition(c.key, doc) }));
+  return { hit: conditions.every((c) => c.ok), conditions };
+}
+
+/**
+ * 留学生政审红线：公安政法类职位（人民警察）。
+ * 依据一：《公安机关录用人民警察政治考察工作办法》（公通字〔2020〕11号），
+ *   第八条明确「已取得或者正在申请国（境）外永久居留权、长期居留许可的」不得确定为拟录用人选；
+ *   各地公安机关报考指南进一步明确：曾连续六个月以上在国（境）外留学、工作、生活，
+ *   国（境）外期间经历和政治表现难以进行考察的，不得录用（东莞、博罗等地报考指南原文口径）。
+ * 依据二：国考/省考人民警察职位表备注原文「非公派原因，曾六个月以上在国（境）外留学、工作、生活的，不得报考」。
+ * 适用范围：出入境边防检查、缉私、移民、监狱、司法警察等人民警察职位（海关缉私局属人民警察序列）。
+ */
+export const RETURNEE_POLICE_BAR = {
+  title: '公安政法类职位对留学生的禁入条款',
+  quote: '非公派原因，曾六个月以上在国（境）外留学、工作、生活的，不得报考。',
+  points: [
+    '自费出国留学满一年以上的，基本都会踩中这条——英国一年制硕士正好超过六个月线。',
+    '踩中的不是「专业不符」，是「政治考察无法完成」：边检、缉私这类职位零报名最多，但对留学生是硬禁入。',
+    '非公安类职位（税务、海关业务、气象、海事、事业编）没有这条硬禁入，留学经历按《公务员录用考察办法（试行）》正常考察即可。',
+    '录入岗位时勾选「公安政法类」，捡漏判定会自动把它标为留学生不宜报，避免浪费时间。',
+  ],
+  scope: '出入境边防检查 / 缉私 / 移民 / 监狱 / 司法警察等人民警察职位',
+  sourceUrl: 'https://www.szft.gov.cn/bmxx/qgaj/ztfw/zjbl/zcfg/content/post_8176219.html',
+  sourceName: '《公安机关录用人民警察政治考察工作办法》（公通字〔2020〕11号）全文',
+};
+
+/** 2027 年度国考实时窗口（公告 2026-10-13 发布，报名进行中） */
+export const GUOKAO_2027_WINDOW = {
+  title: '2027 年度国考 · 报名窗口（进行中）',
+  registerStart: '2026-10-14 08:00',
+  registerEnd: '2026-10-24 18:00',
+  authDeadline: '2026-10-23 18:00',
+  examDate: '2026-11-29',
+  planTotal: '3.57 万人',
+  planFresh: '2.46 万个应届计划（中央机关直属市（地）级及以下机构主要招录应届高校毕业生）',
+  ageRule: '18~38 周岁（1987-10 至 2008-10 出生）；2027 年应届硕士、博士放宽到 43 周岁',
+  baseRule: '中央机关及省级直属机构主要招录具有 2 年以上基层工作经历人员（经历计算截止 2026-10）',
+  authNote: '须先在专题网站注册，并通过电子社保卡等完成实名实人认证，才能报名和提交报考申请',
+  trackTips: [
+    '报名数据每日更新：公考雷达 / 华图 / 中公的「报名人数统计」每天刷新，按「报名人数 ≤ 招考人数」筛，就是当日捡漏候选。',
+    '报名最后两天是黄金窗口：大量考生观望到截止前才报名，冷门职位在 10/23-10/24 会集中现形。',
+    '应届身份口径以当年报考指南为准（往年口径：面试前取得境外学位并完成留服认证、未落实工作单位）。',
+    '职位表在专题网站下载后，可用「录入岗位 / 批量导入」把候选行灌进本应用，自动跑捡漏五条件。',
+  ],
+  sourceUrl: 'http://bm.scs.gov.cn/kl2027',
+  sourceName: '国家公务员局 · 2027 年度考试录用公务员专题网站',
+};
+
+/** 报名不需要简历：统考材料清单（广东省考资审公告原文） */
+export const NO_RESUME_NOTE = {
+  title: '公务员 / 事业编统考报名不需要简历',
+  points: [
+    '国考、省考、事业单位统一公开招聘的报名与资格审核材料只有：报名登记表、身份证、户口簿、学历学位证（应届生为学生证 + 就业推荐表）、职位要求的证明材料——全程没有「简历」这一项。',
+    '留学生只多一份材料：教育部留学服务中心出具的学历学位认证函；专业名对不上国内目录时，再用 12 个月内的 1 次专业复核对齐 0812。',
+    '需要简历的是国企、银行、高校、医院等自主招聘，不走统考流程——巡考路上真正要准备简历的是这类。',
+  ],
+  sourceUrl: 'https://gdjyj.gd.gov.cn/attachment/0/607/607945/4862641.pdf',
+  sourceName: '广东省公务员考试录用资格审核材料清单',
+};
+
+/** 2026 国考「挂零」实录：为什么这些漏捡不到（真实数据，见 position-nodes.mjs 种子行） */
+export const GUOKAO_2026_ZERO_TIP = {
+  title: '2026 国考「挂零」实录',
+  stats:
+    '截至 2025-10-24 17:30，2026 国考共 89 个职位无人报考（占总职位数 0.4%，比上年 163 个减少近一半），吉林省居首；集中在出入境边检总站、海关、海事局等一线执法部门。',
+  lessons: [
+    '边检 / 缉私类零报名最多，但人民警察职位对留学生有六个月以上境外经历禁入条款——专业再对口也报不了（见上方政审红线）。',
+    '上海海关「物控查检（电子信息化类）」专业明确含计算机科学与技术，却因「定向大学生村官 + 二年基层经历 + 中共党员」零报名——卡人的是门槛，不是分数。',
+    '事业编同款剧本：湖南省直事业单位网络工程师岗（0812）仅 1 人过审、未达 1:3 开考比例被取消，卡在「网信中级职称」；江苏 22 个岗位未达开考比例被取消，计算机岗多要求博士。',
+    '结论：对留学生 CS 硕士，「零报名 + 不设比例 + 专业对口 + 政审安全」四件事同时成立的位置极稀缺——所以要做的是在报名窗口内每日盯数据，而不是翻旧黄历。',
+  ],
+  sourceUrl: 'https://www.eoffcn.com/kszx/detail/2169525.html',
+  sourceName: '中公教育 · 2026 国考报名数据统计（89 个职位挂零）',
+};
+
+/** 捡漏攻略：前端「捡漏攻略」弹层一次性取用（随 catalogs 下发） */
+export const BARGAIN_GUIDE = {
+  intro:
+    '捡漏 = 没人报 + 我能报 + 考得起。本应用把这三件事拆成可核验的五条件，命中即「圈出来」；下面是实时窗口、政审红线、材料清单与 2026 年真实挂零实录。',
+  conditions: BARGAIN_CONDITIONS,
+  window: GUOKAO_2027_WINDOW,
+  policeBar: RETURNEE_POLICE_BAR,
+  noResume: NO_RESUME_NOTE,
+  zeroTip: GUOKAO_2026_ZERO_TIP,
+};
+
 export const SORTS = [
   { key: 'score_asc', label: '上岸分从低到高' },
   { key: 'score_desc', label: '上岸分从高到低' },
@@ -368,6 +488,8 @@ export function publicCatalogs() {
     scoreBands: SCORE_BANDS,
     scoreFields: SCORE_FIELDS,
     applyFields: APPLY_FIELDS,
+    bargainConditions: BARGAIN_CONDITIONS,
+    bargainGuide: BARGAIN_GUIDE,
     sorts: SORTS,
   };
 }

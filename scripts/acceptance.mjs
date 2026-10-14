@@ -319,7 +319,7 @@ function buildReport({ tests, contract, syntaxCount, staticInfo, storage, durati
   lines.push('| 用户/账号/令牌/审计云端存储 | `server/store/index.mjs`（local / cloudbase 双驱动） | 存储集合核查 + 驱动抽象 |');
   lines.push('| 公告截图云端存储 | `server/routes/uploads.mjs` | 上传/魔数校验/静态访问用例 |');
   lines.push('| 我的 / 安全记录（设备+日志+退出） | `public/js/pages/me.mjs` | 安全记录套件 9 条用例 |');
-  lines.push('| 留学生友好岗位库（筛选/三件套/报名数据/政策基线） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 23 条用例 |');
+  lines.push('| 留学生友好岗位库（筛选/三件套/报名数据/政策基线/捡漏栏目） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 27 条用例（含捡漏五条件判定、政法类政审禁入、零报名实录核查） |');
   lines.push('');
   lines.push('## 五、已知限制（诚实边界）');
   lines.push('');
@@ -327,8 +327,9 @@ function buildReport({ tests, contract, syntaxCount, staticInfo, storage, durati
   lines.push('2. **微信真实授权未联调**：`snsapi_login` 授权码流程已按官方文档实现（含 state 防 CSRF、一次性票据），但需要真实 AppID/AppSecret 与回调域名才能端到端验证；当前默认走 Mock 通道，界面明确标注。');
   lines.push('3. **未做浏览器端自动化（E2E）**：前端为原生 ES 模块，已通过语法校验 + 静态资源可达性 + 深链回退核查，补充验证建议使用 Playwright 跑一遍真实点击流程。');
   lines.push('4. **公共招考节点日期为参考值**：见 `server/official-nodes.mjs`，入库时 `verified=false`，界面有显式提示，实际以主管部门公告为准。');
-  lines.push('5. **岗位库种子含第三方整理数据**：5 条来自公考雷达等平台的真实样本（`dataLevel=thirdparty`，通常溯源到官方公告）、16 条为演示筛选逻辑构造的示例行（`dataLevel=sample`），界面均有 badge 与复核提示；项目不抓取、不推测、不补全缺失字段，报考前请以官方职位表复核。');
-  lines.push('6. **限流为进程内实现**：单实例有效；多实例部署需替换为 Redis 计数器（接口已抽离，替换成本低）。');
+  lines.push('5. **岗位库种子含第三方整理数据**：20 条来自公考雷达 / 中公 / 华图报名统计、湖南省人社厅公示与人民网报道的真实样本（`dataLevel=thirdparty`，含 2026 国考 11 条零报名实录与 4 条事业编取消实录，逐行附来源与统计时间）、16 条为演示筛选逻辑构造的示例行（`dataLevel=sample`），界面均有 badge 与复核提示；项目不抓取、不推测、不补全缺失字段，报考前请以官方职位表复核。');
+  lines.push('6. **捡漏判定是筛子不是预言**：五条件基于岗位行内已录入字段计算（`applicants===0` + 不设开考比例 + 专业对口 + 学历达标 + 非公安政法类），报名数据随时间变化，2027 国考报名窗口内需每日回官方渠道复核；政法类禁入判定依据《公安机关录用人民警察政治考察工作办法》（公通字〔2020〕11号）与各地报考指南口径，具体职位以公告备注为准。');
+  lines.push('7. **限流为进程内实现**：单实例有效；多实例部署需替换为 Redis 计数器（接口已抽离，替换成本低）。');
   lines.push('');
   lines.push('## 六、结论');
   lines.push('');

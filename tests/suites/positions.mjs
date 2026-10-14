@@ -3,7 +3,7 @@
  *
  * 覆盖用户原始诉求的每一个筛选条件：
  *   省份 / 计算机科学与技术（0812）/ 硕士不限专业 / 不设开考比例 / 仅限应届 /
- *   上岸分 50 多分 / 低于 120 分 / 多条件组合。
+ *   上岸分 50 多分 / 低于 120 分 / 多条件组合 / 捡漏五条件。
  */
 import { suite, assert, assertEqual, assertIncludes, loadLimiters } from '../helpers.mjs';
 
@@ -23,6 +23,8 @@ export function positionSuite({ admin, user, baseUrl }) {
     const bands = d.scoreBands.map((b) => b.key);
     assertEqual(bands.join(','), 'low50,lt120', '两个分数段口径');
     assert(d.ratioTypes.some((r) => r.key === 'none'), '应含「不设开考比例」类型');
+    assertEqual(d.bargainConditions.length, 5, '捡漏五条件');
+    assert(d.bargainGuide && d.bargainGuide.window, '应下发捡漏攻略（含实时报名窗口）');
   });
 
   s.test('政策基线游客可读：国考分数线与分省开考比例', async () => {
@@ -248,6 +250,78 @@ export function positionSuite({ admin, user, baseUrl }) {
     assertEqual(badDate.body.code, 2010, '非法日期错误码');
   });
 
+  s.test('捡漏五条件：全中才 hit，bargain=1 只返回命中行', async () => {
+    const { resetAllLimiters } = await loadLimiters();
+    resetAllLimiters();
+    const res = await user.post('/api/positions', {
+      province: '广西', examType: 'shengkao', year: 2027, unit: '捡漏命中单位', title: '捡漏命中岗位',
+      majorTrack: 'cs0812', majorText: '计算机科学与技术（0812）',
+      degree: 'master', freshOnly: true, ratioType: 'none', ratioText: '按实际缴费人数开考',
+      scoreMin: 55, scoreTotal: 200, applicants: 0, competition: 0,
+      dataSource: '测试构造', dataUpdatedAt: '2026-10-14', notes: '捡漏测试行',
+    });
+    assertEqual(res.body.code, 0, '录入结果');
+    created.bargainId = res.body.data.position.id;
+    const b = res.body.data.position.bargain;
+    assert(b.hit, '五条件全中应命中捡漏');
+    assertEqual(b.conditions.length, 5, '应逐条返回五个条件');
+    assert(b.conditions.every((c) => c.ok), '逐条件应全部为 true');
+
+    const list = await user.get('/api/positions?bargain=1');
+    assertEqual(list.body.code, 0, '业务码');
+    assert(list.body.data.count >= 1, '至少一条命中');
+    assert(
+      list.body.data.positions.every((p) => p.bargain.hit === true),
+      '筛选结果必须全部命中五条件'
+    );
+    assert(
+      list.body.data.positions.some((p) => p.id === created.bargainId),
+      '命中行应出现在捡漏专区'
+    );
+    assert(list.body.data.stats.bargain >= 1, '统计应含捡漏命中数');
+  });
+
+  s.test('捡漏判定：公安政法类职位留学生政审禁入，不进捡漏专区', async () => {
+    const { resetAllLimiters } = await loadLimiters();
+    resetAllLimiters();
+    const res = await user.post('/api/positions', {
+      province: '内蒙古', examType: 'guokao', year: 2027, unit: '某出入境边防检查站', title: '警务技术岗',
+      majorTrack: 'cs0812', degree: 'master', freshOnly: false, ratioType: 'none',
+      scoreMin: 50, scoreTotal: 200, applicants: 0, policePosition: true,
+    });
+    assertEqual(res.body.code, 0, '录入结果');
+    created.policeId = res.body.data.position.id;
+    const b = res.body.data.position.bargain;
+    assert(!b.hit, '政法类职位即使零报名也不应命中捡漏');
+    const returneeSafe = b.conditions.find((c) => c.key === 'returneeSafe');
+    assert(returneeSafe && !returneeSafe.ok, '政审安全条件应判否');
+    assertEqual(res.body.data.position.policePosition, true, '政法类标记应落库');
+
+    const list = await user.get('/api/positions?bargain=1');
+    assert(
+      !list.body.data.positions.some((p) => p.id === created.policeId),
+      '政法类职位不应出现在捡漏专区'
+    );
+  });
+
+  s.test('零报名实录行：真实挂零职位带来源，政法类被标记', async () => {
+    const res = await admin.get('/api/positions?dataLevel=thirdparty', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const zero = res.body.data.positions.filter((p) => p.applicants === 0);
+    assert(zero.length >= 5, '应有多行真实零报名实录');
+    assert(
+      zero.every((p) => p.dataSource && p.dataUpdatedAt && p.sourceUrl),
+      '实录行必须带数据来源、更新时间与来源链接'
+    );
+    assert(res.body.data.stats.zeroApply >= 5, '统计应含零报名数');
+    assert(zero.some((p) => p.policePosition === true), '应有政法类零报名实录行');
+  });
+
+  s.test('bargain 参数校验：非法值返回 2010', async () => {
+    const bad = await admin.get('/api/positions?bargain=maybe', { token: null });
+    assertEqual(bad.body.code, 2010, '非法 bargain 值错误码');
+  });
+
   s.test('跨用户不能修改 / 删除他人录入的岗位（403）', async () => {
     const other = (await admin.get('/api/positions?q=测试录入', { token: null })).body.data.positions[0];
     assert(!other, '游客视角本应查不到，这里只做防御性断言');
@@ -315,11 +389,14 @@ export function positionSuite({ admin, user, baseUrl }) {
     assert(Array.isArray(res.body.data.provinces), '分省统计');
   });
 
-  s.test('删除自己录入的岗位', async () => {
-    const res = await user.del(`/api/positions/${created.id}`);
-    assertEqual(res.body.code, 0, '删除结果');
-    const gone = await user.get(`/api/positions/${created.id}`);
-    assertEqual(gone.body.code, 2011, '删除后应查不到');
+  s.test('删除自己录入的岗位（含捡漏测试行）', async () => {
+    for (const id of [created.id, created.bargainId, created.policeId]) {
+      if (!id) continue;
+      const res = await user.del(`/api/positions/${id}`);
+      assertEqual(res.body.code, 0, '删除结果');
+      const gone = await user.get(`/api/positions/${id}`);
+      assertEqual(gone.body.code, 2011, '删除后应查不到');
+    }
   });
 
   return s;

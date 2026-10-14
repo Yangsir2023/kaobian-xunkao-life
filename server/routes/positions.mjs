@@ -33,6 +33,7 @@ import {
   getDegree,
   matchScoreBand,
   isLowScore,
+  evaluateBargain,
   publicCatalogs,
   PROVINCE_POLICIES,
   PROVINCE_POLICY_DISCLAIMER,
@@ -181,6 +182,10 @@ export function shapePosition(doc, { viewer = null } = {}) {
     dataLevelName: level?.short || doc.dataLevel,
     dataLevelColor: level?.color || '#4B5563',
     dataLevelAccent: level?.accent || '#EEF0F3',
+    // 公安政法类（人民警察）职位：留学生政审禁入，录入/导入时显式标记
+    policePosition: Boolean(doc.policePosition),
+    // 捡漏五条件判定：hit=true 才值得「圈出来」，conditions 供前端逐条展示 ✓/✗
+    bargain: evaluateBargain(doc),
     source: doc.source,
     owned: isOwner,
     editable: isOwner || (Boolean(viewer) && roleAtLeast(viewer.role, ROLES.ADMIN)),
@@ -214,6 +219,8 @@ function pickWritable(body) {
   if (body.freshOnly !== undefined) patch.freshOnly = Boolean(body.freshOnly);
   if (body.ratioType !== undefined) patch.ratioType = assertRatioType(body.ratioType);
   if (body.ratioText !== undefined) patch.ratioText = String(body.ratioText || '').slice(0, 300);
+  // 公安政法类（人民警察）职位标记：捡漏五条件里「留学生政审安全」的判定依据
+  if (body.policePosition !== undefined) patch.policePosition = Boolean(body.policePosition);
   if (body.score !== undefined) patch.score = assertScore(body.score);
   if (body.scoreMin !== undefined) patch.scoreMin = assertScore(body.scoreMin, 'scoreMin');
   if (body.scoreMax !== undefined) patch.scoreMax = assertScore(body.scoreMax, 'scoreMax');
@@ -291,6 +298,13 @@ export function registerPositionRoutes(router) {
     else if (freshOnlyRaw === 'false' || freshOnlyRaw === '0') freshOnly = false;
     else if (freshOnlyRaw) throw fail(CODES.POSITION_INVALID_PARAMS, 'freshOnly 只能是 true / false', 400);
 
+    // 捡漏专区：只返回五条件全中的岗位（零报名 + 不设开考比例 + 专业对口 + 学历达标 + 留学生政审安全）
+    const bargainRaw = ctx.query.get('bargain');
+    let bargain = null;
+    if (bargainRaw === 'true' || bargainRaw === '1') bargain = true;
+    else if (bargainRaw === 'false' || bargainRaw === '0') bargain = false;
+    else if (bargainRaw) throw fail(CODES.POSITION_INVALID_PARAMS, 'bargain 只能是 true / false', 400);
+
     // 分数段支持多选（逗号分隔），命中任一口径即算低分上岸
     const bandParam = ctx.query.get('band');
     let bands = [];
@@ -333,6 +347,9 @@ export function registerPositionRoutes(router) {
           (row.positionCode || '').includes(needle)
       );
     }
+    if (bargain === true) {
+      shaped = shaped.filter((row) => row.bargain.hit);
+    }
 
     const stats = {
       total: shaped.length,
@@ -342,6 +359,8 @@ export function registerPositionRoutes(router) {
       provinces: [...new Set(shaped.map((row) => row.province))].length,
       withScore: shaped.filter((row) => row.score != null).length,
       thirdparty: shaped.filter((row) => row.dataLevel === 'thirdparty').length,
+      zeroApply: shaped.filter((row) => row.applicants === 0).length,
+      bargain: shaped.filter((row) => row.bargain.hit).length,
     };
 
     if (sort === 'score_desc') shaped.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
@@ -352,7 +371,7 @@ export function registerPositionRoutes(router) {
     return ok({
       count: shaped.length,
       stats,
-      filters: { provinces, examType, majorTrack, ratioType, degree, freshOnly, bands, maxScore, q, sort },
+      filters: { provinces, examType, majorTrack, ratioType, degree, freshOnly, bands, maxScore, q, sort, bargain },
       positions: page,
       page: { limit, offset, hasMore: offset + limit < shaped.length },
     });
@@ -403,6 +422,7 @@ export function registerPositionRoutes(router) {
       freshOnly: Boolean(body.freshOnly),
       ratioType: assertRatioType(body.ratioType),
       ratioText: String(body.ratioText || '').slice(0, 300),
+      policePosition: Boolean(body.policePosition),
       score: assertScore(body.score),
       scoreMin: assertScore(body.scoreMin, 'scoreMin'),
       scoreMax: assertScore(body.scoreMax, 'scoreMax'),
@@ -524,9 +544,10 @@ export function registerPositionRoutes(router) {
           majorTrack: assertMajorTrack(item.majorTrack),
           majorText: String(item.majorText || '').slice(0, 120),
           degree: item.degree ? assertDegree(item.degree) : 'master',
-          freshOnly: Boolean(item.freshOnly),
-          ratioType: assertRatioType(item.ratioType),
-          ratioText: String(item.ratioText || '').slice(0, 300),
+        freshOnly: Boolean(item.freshOnly),
+        ratioType: assertRatioType(item.ratioType),
+        ratioText: String(item.ratioText || '').slice(0, 300),
+        policePosition: Boolean(item.policePosition),
           score: assertScore(item.score),
           scoreMin: assertScore(item.scoreMin, 'scoreMin'),
           scoreMax: assertScore(item.scoreMax, 'scoreMax'),
@@ -578,6 +599,8 @@ export function registerPositionRoutes(router) {
       freshOnly: shaped.filter((row) => row.freshOnly).length,
       csTrack: shaped.filter((row) => row.majorTrack === 'cs0812' || row.majorTrack === 'both').length,
       masterAny: shaped.filter((row) => row.majorTrack === 'master_any' || row.majorTrack === 'both').length,
+      zeroApply: shaped.filter((row) => row.applicants === 0).length,
+      bargain: shaped.filter((row) => row.bargain.hit).length,
       seedCount: SEED_POSITIONS.length,
       provinces: Object.entries(byProvince)
         .map(([province, count]) => ({ province, count }))
