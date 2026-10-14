@@ -195,6 +195,7 @@ function filterHtml() {
         ${icon('users', { size: 13, className: 'icon icon-sm' })}低报名专区
       </button>
       <button class="chip" data-guide="1">${icon('signpost', { size: 13, className: 'icon icon-sm' })}捡漏攻略</button>
+      <button class="chip chip-hukou" data-hukou="1">${icon('globe', { size: 13, className: 'icon icon-sm' })}外地可考</button>
       <button class="chip ${state.majorTrack === PRESET.majorTrack && state.ratioType === PRESET.ratioType && state.freshOnly === PRESET.freshOnly && state.bands.includes('lt120') ? 'is-active' : ''}" data-preset="1">
         ${icon('spark', { size: 13, className: 'icon icon-sm' })}低分上岸组合
       </button>
@@ -629,6 +630,10 @@ function bind(root) {
 
   root.querySelectorAll('[data-archive]').forEach((btn) => {
     btn.addEventListener('click', () => openAnnouncementSheet());
+  });
+
+  root.querySelectorAll('[data-hukou]').forEach((btn) => {
+    btn.addEventListener('click', () => openHukouSheet());
   });
 
   root.querySelectorAll('[data-province]').forEach((btn) => {
@@ -1719,6 +1724,97 @@ function openAnnouncementSheet() {
           <li>省考只看你目标省份的那一两条：各省公告分散在省人社厅 / 人事考试网，本归档未逐省穷举，缺的省份请以省官网为准。</li>
           <li>取消 / 核减职位公告单独看：那是最真实的「报名人数不足」证据，比任何机构估算都硬，岗位库里同批次的职位已按原文收录。</li>
           <li>公告一发布，本应用只更新提醒节点，不替你判断能不能报——户籍、专业、应届身份仍需逐条对照职位表。</li>
+        </ul>
+      </div>
+    `,
+  });
+}
+
+/* ───────────────── 外地可考 · 户籍口径弹层 ───────────────── */
+
+function hukouLevelBadge(key) {
+  const lv = (state.catalogs?.hukouLevels || []).find((l) => l.key === key);
+  if (!lv) return '';
+  return `<span class="badge" style="background:${lv.accent};color:${lv.color}">${escapeHtml(lv.short || lv.name)}</span>`;
+}
+
+function hukouItemCard(it) {
+  const kinds = state.catalogs?.examTypes || [];
+  const kind = kinds.find((k) => k.key === it.examType);
+  return `<div class="best-pick">
+    <div class="region-name">${escapeHtml(it.name)}${hukouLevelBadge(it.level)}</div>
+    ${kind ? `<div class="region-line"><b>考试类别</b>：${escapeHtml(kind.name)}</div>` : ''}
+    ${it.scale ? `<div class="region-line"><b>规模</b>：${escapeHtml(it.scale)}</div>` : ''}
+    ${it.window ? `<div class="region-line"><b>窗口</b>：${escapeHtml(it.window)}</div>` : ''}
+    ${it.quote ? `<div class="note-box mt-6">${escapeHtml(it.quote)}</div>` : ''}
+    ${it.why ? `<div class="region-line"><b>为什么值得看</b>：${escapeHtml(it.why)}</div>` : ''}
+    ${it.caution ? `<div class="region-line is-risk"><b>注意</b>：${escapeHtml(it.caution)}</div>` : ''}
+    ${bestSource(it)}
+    ${
+      (it.stats || []).length
+        ? `<div class="ann-stats mt-6">
+            ${it.stats
+              .map(
+                (s) => `<div class="ann-stat">
+                  ${archiveLevelBadge(s.level)}<span class="grow">${escapeHtml(s.text)}</span>
+                  ${bestSource(s)}
+                </div>`
+              )
+              .join('')}
+          </div>`
+        : ''
+    }
+  </div>`;
+}
+
+function openHukouSheet() {
+  const guide = state.catalogs?.hukouGuide;
+  if (!guide?.items?.length) {
+    toast('户籍口径数据加载中，请稍后重试');
+    return;
+  }
+  const openCount = guide.items.filter((i) => i.level === 'open').length;
+  const freshCount = guide.items.filter((i) => i.level === 'fresh').length;
+
+  openSheet({
+    title: '外地可考 · 户籍口径',
+    subtitle: `${guide.items.length} 类考试按户籍口径重新排 · 其中 ${openCount} 类明确不限户籍、${freshCount} 类应届不限往届受限`,
+    content: `
+      <div class="notice notice-info">${icon('globe', { size: 16 })}<div class="grow">${escapeHtml(guide.intro)}</div></div>
+      <div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow">${escapeHtml(guide.caveat)}</div></div>
+
+      <div class="best-legend mt-10">
+        ${(guide.levels || [])
+          .map(
+            (l) => `<span class="best-legend-item"><span class="badge" style="background:${l.accent};color:${l.color}">${escapeHtml(l.short)}</span>
+              <span class="tiny muted">${escapeHtml(l.desc)}</span></span>`
+          )
+          .join('')}
+      </div>
+
+      <div class="filter-group mt-14">
+        <div class="filter-group-title">一、明确不限户籍（外地考生与本地考生同条件）</div>
+        ${guide.items.filter((i) => i.level === 'open').map(hukouItemCard).join('')}
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">二、应届不限 · 往届限本地</div>
+        ${guide.items.filter((i) => i.level === 'fresh').map(hukouItemCard).join('')}
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">三、各地自定 · 必须逐公告核对</div>
+        ${guide.items.filter((i) => i.level === 'mixed' || i.level === 'local').map(hukouItemCard).join('')}
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">四、怎么用这份对照</div>
+        <ul class="policy-list">
+          <li>先看<b>级别徽标</b>再决定要不要点开：绿标「不限户籍」可以直接排进计划，蓝标「应届不限」取决于你还在不在择业期，紫标「逐公告看」必须自己找当年公告核对。</li>
+          <li>「村官」不是一个考试：省里统一组织的（如河南万名协理员）可以不限户籍、带编；县乡自己招的村级后备干部大多限本地，且同一份公告里可能出现「应届限本地、往届不限」这种反直觉写法。</li>
+          <li>社区工作者的口子在「应届」二字上：<b>往届外地考生基本报不了</b>，需要本地户籍或居住证满年限且积分达标。</li>
+          <li>三支一扶、社区工作者、村官这类各省 / 各区自己定的考试，<b>别把一个地方的结论外推到全国</b>——本清单标明的是具体哪一份公告的口径。</li>
+          <li>没出现在这份清单里的考试（军队文职、选调生、人才引进等）不代表限户籍，只是本次没核到明确条款原文，报名前请以当年公告为准。</li>
         </ul>
       </div>
     `,

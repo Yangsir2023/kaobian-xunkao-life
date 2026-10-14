@@ -437,6 +437,90 @@ async function main() {
       width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
     });
 
+    console.log('\n[7c] 外地可考 · 户籍口径弹层');
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions?u=${Date.now()}` });
+    await sleep(1900);
+    const hukouChip = await cdp.eval(`(() => {
+      const c = document.querySelector('[data-hukou]');
+      if (!c) return { found: false };
+      // 标签条是横向滚动容器：先把目标标签滑到视野内，否则鼠标点的是容器外的位置
+      c.scrollIntoView({ block: 'nearest', inline: 'center' });
+      const r = c.getBoundingClientRect();
+      return {
+        found: true,
+        label: c.textContent.trim(),
+        x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('岗位页有「外地可考」标签', hukouChip.found === true, hukouChip.label);
+    check('标签页不撑破 480px 页面', hukouChip.found && hukouChip.docOverflow <= 1, `+${hukouChip.docOverflow}`);
+
+    await cdp.click(hukouChip.x, hukouChip.y);
+    await sleep(900);
+    const hukouSheet = await cdp.eval(`(() => {
+      const t = document.querySelector('.sheet-body')?.innerText || '';
+      return {
+        open: !!document.querySelector('.sheet-panel'),
+        title: document.querySelector('.sheet-title')?.textContent || '',
+        groups: document.querySelectorAll('.sheet-body .filter-group').length,
+        cards: document.querySelectorAll('.sheet-body .best-pick').length,
+        badges: document.querySelectorAll('.sheet-body .best-pick .badge').length,
+        quotes: document.querySelectorAll('.sheet-body .best-pick .note-box').length,
+        sources: document.querySelectorAll('.sheet-body .best-pick .link-out').length,
+        levels: ['不限户籍', '应届不限', '限本地', '逐公告看'].filter((k) => t.includes(k)).length,
+        noHukouCaveat: /没出现在这份清单里/.test(t),
+        hasHenan: /乡村振兴村级协理员/.test(t),
+        hasXibu: /西部计划/.test(t),
+        hasCunban: /村级后备干部/.test(t),
+        hasShequ: /社区工作者/.test(t),
+        overflow: (() => { const b = document.querySelector('.sheet-body'); return b ? b.scrollWidth - b.clientWidth : -1; })(),
+      };
+    })()`);
+    check('点击后户籍口径弹层打开', hukouSheet.open === true);
+    check('弹层标题正确', hukouSheet.title === '外地可考 · 户籍口径', hukouSheet.title);
+    check('按口径分三组渲染', hukouSheet.groups >= 4, `${hukouSheet.groups} 组`);
+    check('考试卡渲染', hukouSheet.cards >= 5, `${hukouSheet.cards} 张`);
+    check('每条带口径徽标', hukouSheet.badges >= 5, `${hukouSheet.badges} 个`);
+    check('每条带依据原文', hukouSheet.quotes >= 5, `${hukouSheet.quotes} 段`);
+    check('来源外链渲染', hukouSheet.sources >= 5, `${hukouSheet.sources} 条`);
+    check('四档口径图例齐全', hukouSheet.levels === 4, `${hukouSheet.levels}/4`);
+    check('「没出现 ≠ 限户籍」声明在', hukouSheet.noHukouCaveat === true);
+    check('含河南村级协理员（不限户籍带编）', hukouSheet.hasHenan === true);
+    check('含西部计划', hukouSheet.hasXibu === true);
+    check('含村级后备干部（村官类）', hukouSheet.hasCunban === true);
+    check('含社区工作者（应届不限）', hukouSheet.hasShequ === true);
+    check('480px 下无横向溢出', hukouSheet.overflow <= 1, `+${hukouSheet.overflow}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(400);
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360, height: 780, deviceScaleFactor: 1, mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions?u=${Date.now()}` });
+    await sleep(1900);
+    await cdp.eval(`document.querySelector('[data-hukou]')?.click()`);
+    await sleep(900);
+    const hukouNarrow = await cdp.eval(`(() => {
+      const body = document.querySelector('.sheet-body');
+      const panel = document.querySelector('.sheet-panel');
+      return {
+        open: !!panel,
+        overflow: body ? body.scrollWidth - body.clientWidth : -1,
+        panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : -1,
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('360px 下户籍口径弹层仍能打开', hukouNarrow.open === true);
+    check('360px 下无横向溢出（弹层 / 面板 / 整页）',
+      hukouNarrow.overflow <= 1 && hukouNarrow.panelOverflow <= 1 && hukouNarrow.docOverflow <= 1,
+      `body+${hukouNarrow.overflow} panel+${hukouNarrow.panelOverflow} doc+${hukouNarrow.docOverflow}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(300);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+
     console.log('\n[8] 首页 / 分类页的标签条也自动增强');
     for (const hash of ['/', '/categories']) {
       await cdp.send('Page.navigate', { url: `${BASE}/#${hash}` });

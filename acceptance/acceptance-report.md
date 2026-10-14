@@ -2,16 +2,16 @@
 
 **结论：GATE PASS**
 
-- 生成时间：2026/10/15 07:39:15
+- 生成时间：2026/10/15 07:56:44
 - 运行环境：Node v22.22.2 · win32 · 驱动 `local`
-- 验收项：12/12 通过 · 测试用例：94/94 通过（100%）
-- 总耗时：9.85s
+- 验收项：12/12 通过 · 测试用例：96/96 通过（100%）
+- 总耗时：6.80s
 
 ## 一、验收项清单
 
 | # | 验收项 | 结果 | 证据 |
 | --- | --- | --- | --- |
-| 1 | 全量测试套件 | 通过 | 94/94 通过（100%），失败 0 |
+| 1 | 全量测试套件 | 通过 | 96/96 通过（100%），失败 0 |
 | 2 | 前端调用的接口在后端全部存在 | 通过 | 28 个路径全部命中 |
 | 3 | 后端接口数量统计 | 通过 | 共 42 个 API 路由 |
 | 4 | 前端 ES 模块语法全部通过 | 通过 | 17 个模块 |
@@ -21,18 +21,18 @@
 | 8 | 目录穿越被拦截 | 通过 | HTTP 403 |
 | 9 | 注册链路可用且响应不回吐口令 | 通过 | HTTP 200 code=0 |
 | 10 | 界面未使用 Emoji（统一 SVG 图标） | 通过 | 19 个文件全部干净 |
-| 11 | 口令以 scrypt 哈希落库且无明文字段 | 通过 | 1 个账号 · 样本前缀 scrypt$16384$8$1$uGIkW… |
+| 11 | 口令以 scrypt 哈希落库且无明文字段 | 通过 | 1 个账号 · 样本前缀 scrypt$16384$8$1$9wQ5f… |
 | 12 | 六个集合均可读写（用户/提醒/岗位/刷新令牌/审计/设备） | 通过 | users / reminders / positions / refresh_tokens / audit_logs / devices |
 
 ## 二、测试套件明细
 
 | 套件 | 通过 | 失败 | 耗时 |
 | --- | --- | --- | --- |
-| 鉴权与令牌 | 15 | 0 | 784ms |
-| 提醒业务 | 17 | 0 | 89ms |
-| 岗位库 | 41 | 0 | 567ms |
-| RBAC 权限边界 | 12 | 0 | 134ms |
-| 安全记录与设备 | 9 | 0 | 198ms |
+| 鉴权与令牌 | 15 | 0 | 799ms |
+| 提醒业务 | 17 | 0 | 86ms |
+| 岗位库 | 43 | 0 | 554ms |
+| RBAC 权限边界 | 12 | 0 | 125ms |
+| 安全记录与设备 | 9 | 0 | 196ms |
 
 ### 全部用例
 
@@ -106,6 +106,8 @@
 - ✓ bargain 参数校验：非法值返回 2010
 - ✓ 岗位目录含全部「我能考的」考试类型 + 分数口径 + 准捡漏条件
 - ✓ 岗位目录含历年公告归档：按考试分组、每份带时间节点与可点开的来源
+- ✓ 考试类型含村官与西部计划（外地考生能报的基层通道进了分类）
+- ✓ 户籍口径对照：每条都有口径级别、依据原文与可点开的来源
 - ✓ 政策接口含云南省考合格线 + 分数口径校准 + 人才引进 + 低门槛考试清单
 - ✓ 准捡漏筛选：nearBargain=1 只返回 hit 或接近行，且带五条件与三条标记
 - ✓ 分数口径与官方合格线：折算比对、低于合格线标记待核验
@@ -171,19 +173,19 @@
 | 用户/账号/令牌/审计云端存储 | `server/store/index.mjs`（local / cloudbase 双驱动） | 存储集合核查 + 驱动抽象 |
 | 公告截图云端存储 | `server/routes/uploads.mjs` | 上传/魔数校验/静态访问用例 |
 | 我的 / 安全记录（设备+日志+退出） | `public/js/pages/me.mjs` | 安全记录套件 9 条用例 |
-| 留学生友好岗位库（筛选/三件套/报名数据/政策基线/捡漏栏目） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 41 条用例（含捡漏五条件判定、政法类政审禁入、零报名实录核查、筛选标签容量下限、最佳推荐数据诚实约束） |
+| 留学生友好岗位库（筛选/三件套/报名数据/政策基线/捡漏栏目） | `server/position-catalog.mjs`、`server/position-nodes.mjs`、`server/routes/positions.mjs`、`public/js/pages/positions.mjs` | 岗位库套件 43 条用例（含捡漏五条件判定、政法类政审禁入、零报名实录核查、筛选标签容量下限、最佳推荐数据诚实约束） |
 | 准捡漏栏目（报名≈招录 + 无进面比 + 应届进面 + 分数持平） | `server/position-catalog.mjs#evaluateNearBargain`、`server/position-nodes.mjs#LOW_APPLY_POSITIONS`、`public/js/pages/positions.mjs` | 准捡漏筛选用例（nearBargain=1 只返回 hit/partial，五条件 + 三标记齐全）、低报名筛选用例（lowApply=1） |
 | 分数口径校准（总分 / 两科平均，官方合格线比对） | `server/position-catalog.mjs#SCORE_BASES/SCORE_CALIBRATION/YUNNAN_2026_SCORE_LINES`、`server/routes/positions.mjs#shapePosition` | 口径折算用例（53.35 → 总分 106.7、高出合格线 11.7）、低于合格线标记待核验用例、非法口径拒绝用例 |
 | 人才引进 QS 前 200 通道 + 低门槛考试清单（三支一扶/社区/西部计划） | `server/position-catalog.mjs#RENCAI_QS200_GUIDE/NO_RATIO_EXAMS`、`public/js/pages/positions.mjs#openBargainSheet` | 政策接口用例（地区清单逐条附来源、四类低门槛考试齐全） |
 | 登录用户可切「我的提醒 / 公共招考节点（覆盖我能考的全部考试）」 | `public/js/pages/home.mjs`、`server/official-nodes.mjs`、`server/catalog.mjs` | 分类目录用例（10 类）、公共节点 seed 用例（27 条官方节点） |
 | 横向筛选标签条可拖动滑动 + 溢出时左右翻页 + 重建后保留滚动位置 | `public/js/ui.mjs#initChipRails`、`public/css/app.css`（`.chip-rail` / `.chip-nav`） | `scripts/smoke-ui.mjs` 冒烟 16 项（拖动前进、翻页按钮、拖动不误触标签、重建后位置还原） |
-| 历年公告归档（往年公告原文 + 时间节点逐年对照） | `server/announcement-archive.mjs`、`server/position-catalog.mjs#publicCatalogs`、`public/js/pages/positions.mjs#openAnnouncementSheet`、`public/css/app.css`（`.best-banner.is-archive` / `.ann-item`） | 岗位库套件 1 条用例（分组非空、级别白名单、每份带时间轴与来源链接、国考多年度）+ `scripts/smoke-ui.mjs` 冒烟 16 项（入口横幅、归档弹层分组/年份徽标/时间节点/外链渲染、收录范围声明、480px 与 360px 无横向溢出）  最佳推荐区域（国考推荐地区与岗位 / 省考预测 / 其他考试时间安排） | `server/best-recommend.mjs`、`server/position-catalog.mjs#publicCatalogs`、`public/js/pages/positions.mjs#openBestRecommendSheet`、`public/css/app.css`（`.best-banner` / `.best-pick` / `.best-seq`） | 岗位库套件 5 条用例（三板块结构、级别白名单、来源链接强制、窗口口径一致、政审红线排除）+ `scripts/smoke-ui.mjs` 冒烟 17 项（入口横幅、弹层三板块、级别图例、条目/徽标/时间轴/外链渲染、480px 与 360px 无横向溢出） |
+| 外地可考 · 户籍口径（按户籍口径重排考试 + 村官 / 西部计划进了分类） | `server/hukou-guide.mjs`、`server/position-catalog.mjs#publicCatalogs/EXAM_TYPES`、`public/js/pages/positions.mjs#openHukouSheet`、`public/css/app.css`（`.chip-hukou`） | 岗位库套件 2 条用例（两个新考试类型进目录且筛选有足够条数；每条口径有级别 / 依据原文 / 来源链接，且声明「没列入 ≠ 限户籍」）+ `scripts/smoke-ui.mjs` 冒烟 18 项（标签点击开弹层、四档图例、卡片 / 徽标 / 依据原文 / 外链渲染、480px 与 360px 无横向溢出）  历年公告归档（往年公告原文 + 时间节点逐年对照） | `server/announcement-archive.mjs`、`server/position-catalog.mjs#publicCatalogs`、`public/js/pages/positions.mjs#openAnnouncementSheet`、`public/css/app.css`（`.best-banner.is-archive` / `.ann-item`） | 岗位库套件 1 条用例（分组非空、级别白名单、每份带时间轴与来源链接、国考多年度）+ `scripts/smoke-ui.mjs` 冒烟 16 项（入口横幅、归档弹层分组/年份徽标/时间节点/外链渲染、收录范围声明、480px 与 360px 无横向溢出）  最佳推荐区域（国考推荐地区与岗位 / 省考预测 / 其他考试时间安排） | `server/best-recommend.mjs`、`server/position-catalog.mjs#publicCatalogs`、`public/js/pages/positions.mjs#openBestRecommendSheet`、`public/css/app.css`（`.best-banner` / `.best-pick` / `.best-seq`） | 岗位库套件 5 条用例（三板块结构、级别白名单、来源链接强制、窗口口径一致、政审红线排除）+ `scripts/smoke-ui.mjs` 冒烟 17 项（入口横幅、弹层三板块、级别图例、条目/徽标/时间轴/外链渲染、480px 与 360px 无横向溢出） |
 
 ## 五、已知限制（诚实边界）
 
 1. **CloudBase 未连真实云环境**：双驱动已实现且接口一致，但本次验收在 `DB_DRIVER=local` 下完成；云数据库查询、云存储上传链路需填入真实 `CLOUDBASE_*` 凭证后复验（脚本内会在缺少凭证时自动回退本地驱动并打印告警）。
 2. **微信真实授权未联调**：`snsapi_login` 授权码流程已按官方文档实现（含 state 防 CSRF、一次性票据），但需要真实 AppID/AppSecret 与回调域名才能端到端验证；当前默认走 Mock 通道，界面明确标注。
-3. **浏览器端自动化只覆盖关键交互**：前端为原生 ES 模块，已通过语法校验 + 静态资源可达性 + 深链回退核查；关键交互另有零依赖的 CDP 冒烟脚本 `scripts/smoke-ui.mjs`（真实 Chrome 无头 + 真实鼠标事件，当前覆盖横向筛选标签条的拖动滑动、翻页按钮、滚动位置记忆，以及最佳推荐弹层、历年公告归档弹层的内容渲染与 480px / 360px 两档窄屏无横向溢出，55 项断言）。其余表单流程仍是人工验证，需要更全面覆盖时建议补 Playwright。
+3. **浏览器端自动化只覆盖关键交互**：前端为原生 ES 模块，已通过语法校验 + 静态资源可达性 + 深链回退核查；关键交互另有零依赖的 CDP 冒烟脚本 `scripts/smoke-ui.mjs`（真实 Chrome 无头 + 真实鼠标事件，当前覆盖横向筛选标签条的拖动滑动、翻页按钮、滚动位置记忆，以及最佳推荐弹层、历年公告归档弹层、外地可考户籍口径弹层的内容渲染与 480px / 360px 两档窄屏无横向溢出，73 项断言）。其余表单流程仍是人工验证，需要更全面覆盖时建议补 Playwright。
 4. **公共招考节点日期为参考值**：见 `server/official-nodes.mjs`，入库时 `verified=false`，界面有显式提示，实际以主管部门公告为准。
 5. **岗位库种子含第三方整理数据**：54 条来自公考雷达 / 中公 / 华图报名统计、湖南省人社厅 / 邵阳市人社局 / 郴州市人社局公示与人民网报道的真实样本（`dataLevel=thirdparty`，含 2026 国考 11 条零报名实录、4 条事业编取消实录与 6 条「报名≈招录」低报名取消/核减实录，另有 28 条按 2026 年度湖北/重庆/海南/新疆兵团「职位取消与核减」公告原文逐字收录的职位——公告里没有的字段一律留空、不反推），逐行附来源与统计时间）、720 条为演示筛选逻辑构造的示例行（`dataLevel=sample`；其中 704 条由 `server/position-nodes.mjs#buildSampleGrid` 按「32 个省级区域 × 22 类岗位画像」确定性生成，纯粹为了让每个筛选标签都有足够条数，单位名用「某」占位、职位代码为演示编号、`sourceUrl` 强制置空，另有 16 条手写对照行用来说明「什么样会被筛掉」），界面均有 badge 与复核提示；项目不抓取、不推测、不补全缺失字段，报考前请以官方职位表复核。
 6. **捡漏判定是筛子不是预言**：五条件基于岗位行内已录入字段计算（`applicants===0` + 不设开考比例 + 专业对口 + 学历达标 + 非公安政法类），报名数据随时间变化，2027 国考报名窗口内需每日回官方渠道复核；政法类禁入判定依据《公安机关录用人民警察政治考察工作办法》（公通字〔2020〕11号）与各地报考指南口径，具体职位以公告备注为准。
@@ -195,6 +197,7 @@
 12. **「最佳推荐」里省考与其他考试的时间是预测，不是公告**：`server/best-recommend.mjs` 用三档级别区分数据强度——`official`（公告原文，如 2027 国考窗口、甘肃/安徽选调生、军队文职先面试后笔试岗位）、`thirdparty`（中公/华图/京佳等对官方职位表与报名系统的统计，如各省招录人数、各系统竞争比与平均进面分）、`forecast`（按历年规律推算的省考与其他考试时间节点）。界面用 badge 逐条标注，测试强制校验「级别必须在白名单内」「带竞争/招录结论的条目必须有来源链接」。国考推荐地区是「2027 招录规模 ×（上一年度）2026 实际竞争数据」交叉推导的结果，**不等于报了就上**；决定性变量仍是报名中后期该职位的报名人数 ÷ 招录人数。省考只能选一个联考省份，且各省对国（境）外学历认定口径不同，报名前须逐省读报考指南。
 
 13. **历年公告是档案不是预告**：`server/announcement-archive.mjs` 只收**已经发布过、且能拿到原文链接**的公告（当前 13 份，覆盖国考 2025/2026/2027、湖北/广西/湖南/重庆/海南/新疆兵团省考与职位取消、湖北事业编、军队文职、湖北三支一扶），日期一律从原文读出、原文只给到月份的（如湖南、新疆兵团）就记到月份、不补造具体日；同一省份不同年份的公告分散在各级官网，**未逐省穷举**。归档只用来对照往年节奏（报名窗口几乎不动、笔试日期逐年微调），当年公告发布后一律以当年为准。
+14. **户籍口径是「哪个公告的口径」不是「这个考试的口径」**：`server/hukou-guide.mjs` 每条结论都绑定到具体年度 / 具体地区的公告原文（如三支一扶只写湖北省 2026 年度、社区工作者只写上海四个区 2026 年度），**不把一个地方的结论外推到全国**。只有 6 类考试进了清单——军队文职、选调生、人才引进、事业单位单招等没核到明确户籍条款原文的一律不写，并在 caveat 与界面里明确「没出现在这份清单里，既不等于限户籍，也不等于不限户籍」。「村官」不是一个统一考试：省级专项（河南万名乡村振兴村级协理员，报考指南逐字写明不限户籍 / 生源地 / 毕业院校所在地）与县乡自招的村级后备干部（多数限本地户籍，且存在「应届限本地、往届不限」的反直觉写法）必须分开看。
 ## 六、结论
 
-全部 12 项验收项通过，94 条测试用例零失败，具备交付与演示条件。
+全部 12 项验收项通过，96 条测试用例零失败，具备交付与演示条件。

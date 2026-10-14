@@ -11,6 +11,7 @@
 
 import { BEST_RECOMMEND } from './best-recommend.mjs';
 import { ANNOUNCEMENT_ARCHIVE, ANNOUNCEMENT_LEVELS } from './announcement-archive.mjs';
+import { HUKOU_GUIDE, HUKOU_LEVELS } from './hukou-guide.mjs';
 
 /** 31 个省级行政区 + 中央机关（国考职位归属） */
 export const PROVINCES = [
@@ -83,6 +84,8 @@ export const EXAM_TYPES = [
   { key: 'sanzhiyifu', name: '三支一扶', short: '三支一扶', color: '#0F7BB5', accent: '#E8F3FA' },
   { key: 'rencai', name: '人才引进', short: '人才引进', color: '#C2410C', accent: '#FFF0E6' },
   { key: 'shequ', name: '社区工作者', short: '社区工作者', color: '#7A4FD1', accent: '#F1ECFC' },
+  { key: 'cunban', name: '大学生村官 / 村级后备干部', short: '村官', color: '#4B7B3A', accent: '#EDF4E9' },
+  { key: 'xibu', name: '大学生志愿服务西部计划', short: '西部计划', color: '#0B7285', accent: '#E3F1F4' },
 ];
 
 export const EXAM_TYPE_MAP = new Map(EXAM_TYPES.map((t) => [t.key, t]));
@@ -863,6 +866,8 @@ export function publicCatalogs() {
     bestRecommend: BEST_RECOMMEND,
     announcementArchive: ANNOUNCEMENT_ARCHIVE,
     announcementLevels: ANNOUNCEMENT_LEVELS,
+    hukouGuide: HUKOU_GUIDE,
+    hukouLevels: HUKOU_LEVELS,
     sorts: SORTS,
   };
 }

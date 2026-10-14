@@ -531,6 +531,53 @@ export function positionSuite({ admin, user, baseUrl }) {
     );
   });
 
+  s.test('考试类型含村官与西部计划（外地考生能报的基层通道进了分类）', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const types = res.body.data.examTypes.map((t) => t.key);
+    for (const k of ['cunban', 'xibu']) {
+      assert(types.includes(k), `考试类型应含 ${k}`);
+    }
+    // 新增类型必须有足够条数，否则筛选器点进去是空的
+    for (const k of ['cunban', 'xibu']) {
+      const list = await admin.get(`/api/positions?examType=${k}`, { token: null });
+      assertEqual(list.body.code, 0, `${k} 列表业务码`);
+      assert(list.body.data.stats.total >= 20, `${k} 应不少于 20 条，实际 ${list.body.data.stats.total}`);
+    }
+  });
+
+  s.test('户籍口径对照：每条都有口径级别、依据原文与可点开的来源', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const guide = res.body.data.hukouGuide;
+    const levels = (res.body.data.hukouLevels || []).map((l) => l.key);
+    assert(guide && guide.items.length >= 5, `户籍口径应覆盖多类考试，实际 ${guide?.items?.length}`);
+    assert(guide.intro && guide.caveat, '应同时给出说明与收录范围声明');
+    assert(levels.includes('open') && levels.includes('fresh') && levels.includes('mixed'), '口径级别应含不限户籍 / 应届不限 / 逐公告看');
+    // 「没出现 ≠ 限户籍」必须写进 caveat，避免用户把清单当全集
+    assert(/没出现在这份清单里/.test(guide.caveat), 'caveat 应说明没列入的考试不代表限户籍');
+
+    const examKeys = res.body.data.examTypes.map((t) => t.key);
+    for (const it of guide.items) {
+      assert(levels.includes(it.level), `口径级别应在白名单内：${it.name} → ${it.level}`);
+      assert(examKeys.includes(it.examType), `应挂到已有考试类型上：${it.name} → ${it.examType}`);
+      assert(it.quote && it.why && it.caution, `每条都应有依据原文 / 为什么值得看 / 注意：${it.name}`);
+      assert(/^https?:\/\//.test(it.sourceUrl || ''), `应带可点开的来源链接：${it.name}`);
+      assert(it.sourceName, `应标注来源名称：${it.name}`);
+      for (const st of it.stats || []) {
+        assert(st.text && ['official', 'thirdparty', 'forecast'].includes(st.level), `补充条目应带正文与数据级别：${it.name}`);
+        assert(/^https?:\/\//.test(st.sourceUrl || ''), `补充条目应带来源链接：${it.name}`);
+      }
+    }
+    // 至少有一条明确「不限户籍」，否则这份对照没有实际用途
+    assert(guide.items.some((i) => i.level === 'open'), '至少应有一条明确不限户籍的考试');
+    // 收录的口径必须逐条写清是哪个地区 / 哪一年的，不能泛泛说全国
+    const vague = guide.items.filter(
+      (i) => i.level === 'open' && !/2026|2027|年度|专项|计划/.test(i.sourceName + i.window + i.scale)
+    );
+    assertEqual(vague.length, 0, '每条不限户籍的结论都应落到具体年度 / 计划');
+  });
+
   s.test('政策接口含云南省考合格线 + 分数口径校准 + 人才引进 + 低门槛考试清单', async () => {
     const res = await admin.get('/api/positions/policies', { token: null });
     assertEqual(res.body.code, 0, '业务码');

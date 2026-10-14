@@ -1031,6 +1031,10 @@ const SAMPLE_PROFILES = [
   { examType: 'rencai', track: 'master_any', degree: 'doctor', freshOnly: false, ratioType: 'ratio', score: 68, scoreTotal: 100, planCount: 5, applicants: 9, unit: (p) => (isCentral(p) ? '中央机关直属单位（人才引进·博士专项）' : `${p}某市人才引进（博士专项）`), title: '人才引进岗（博士专项）' },
   { examType: 'shequ', track: 'master_any', degree: 'bachelor', freshOnly: false, ratioType: 'none', score: 61, scoreTotal: 100, planCount: 2, applicants: 2, ratioShortfall: true, ratioFlexible: true, scoreStable: true, unit: (p) => (isCentral(p) ? '中央机关直属单位（社区工作者）' : `${p}某街道社区工作者`), title: '社区工作者' },
   { examType: 'shequ', track: 'other', degree: 'any', freshOnly: false, ratioType: 'ratio', score: 88, scoreTotal: 150, planCount: 4, applicants: 31, unit: (p) => (isCentral(p) ? '中央机关直属单位（社区网格）' : `${p}某社区网格化管理中心`), title: '网格管理员' },
+
+  // ── 村官 / 村级后备干部 与西部计划（外地考生也能报的两类基层通道，各 1 类） ──
+  { examType: 'cunban', track: 'master_any', degree: 'master', freshOnly: true, ratioType: 'none', score: 62, scoreTotal: 100, planCount: 2, applicants: 2, ratioShortfall: true, ratioFlexible: true, scoreStable: true, unit: (p) => (isCentral(p) ? '中央机关直属单位（村级后备干部）' : `${p}某县乡村振兴村级协理员`), title: '村级后备干部' },
+  { examType: 'xibu', track: 'other', degree: 'bachelor', freshOnly: true, ratioType: 'none', score: 58, scoreTotal: 100, planCount: 3, applicants: 3, paidCount: 3, freshInterview: true, unit: (p) => (isCentral(p) ? '大学生志愿服务西部计划（全国项目办）' : `大学生志愿服务西部计划（服务${p}）`), title: '乡村振兴专项志愿者' },
 ];
 
 /**
