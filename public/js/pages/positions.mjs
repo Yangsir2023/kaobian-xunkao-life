@@ -58,6 +58,7 @@ export default {
       subtitle: '按省份筛可报方向，找不设开考比例的低分上岸岗',
       actions: [
         { key: 'best', icon: 'award', label: '最佳推荐', onClick: () => openBestRecommendSheet() },
+        { key: 'archive', icon: 'calendar', label: '历年公告', onClick: () => openAnnouncementSheet() },
         { key: 'bargain', icon: 'star', label: '捡漏攻略', onClick: () => openBargainSheet() },
         { key: 'policy', icon: 'book', label: '政策依据', onClick: () => openPolicySheet() },
         { key: 'add', icon: 'plus', label: '录入岗位', onClick: () => openEditorSheet() },
@@ -108,6 +109,7 @@ function shellHtml() {
   return `
     ${statsHtml()}
     ${bestBannerHtml()}
+    ${archiveBannerHtml()}
     ${filterHtml()}
     ${noticeHtml()}
     <div id="pos-list">${listHtml()}</div>
@@ -131,6 +133,29 @@ function bestBannerHtml() {
       <span class="best-banner-title">最佳推荐区域 · 今年国考已出，考哪里最划算</span>
       <span class="best-banner-line">推荐地区：${escapeHtml(regions)} … · 推荐岗位：${escapeHtml(posts)} …</span>
       <span class="best-banner-line">另含省考预测与其他 12 类考试时间安排 · 每条都标了数据级别与来源</span>
+    </span>
+    ${icon('chevronRight', { size: 16, className: 'icon icon-sm' })}
+  </button>`;
+}
+
+/**
+ * 「历年公告」入口横幅。
+ * 与上方最佳推荐横幅并列：那边答「今年报哪里」，这边答「往年什么时候发、什么时候考」。
+ * 只讲「已经发生过的公告原文」，不做任何预测，避免和预测类内容混在一起被当成承诺。
+ */
+function archiveBannerHtml() {
+  const arc = state.catalogs?.announcementArchive;
+  if (!arc?.groups?.length) return '';
+  const items = arc.groups.flatMap((g) => g.items || []);
+  const years = [...new Set(items.map((i) => i.year))].sort();
+  const yearText = years.length > 1 ? `${years[0]}–${years[years.length - 1]}` : `${years[0] ?? ''}`;
+  const kinds = arc.groups.slice(0, 4).map((g) => g.short || g.name).join(' / ');
+  return `<button class="best-banner is-archive mt-10" data-archive="1">
+    <span class="best-banner-icon">${icon('calendar', { size: 18 })}</span>
+    <span class="best-banner-body">
+      <span class="best-banner-title">历年公告 · ${items.length} 份往年原文（${escapeHtml(yearText)}）</span>
+      <span class="best-banner-line">${escapeHtml(kinds)} … · 公告发布 / 报名 / 笔试的日期逐年对照</span>
+      <span class="best-banner-line">只收已发布过的公告，每条都能点进原文核对 · 不预测未来</span>
     </span>
     ${icon('chevronRight', { size: 16, className: 'icon icon-sm' })}
   </button>`;
@@ -600,6 +625,10 @@ function bind(root) {
 
   root.querySelectorAll('[data-best]').forEach((btn) => {
     btn.addEventListener('click', () => openBestRecommendSheet());
+  });
+
+  root.querySelectorAll('[data-archive]').forEach((btn) => {
+    btn.addEventListener('click', () => openAnnouncementSheet());
   });
 
   root.querySelectorAll('[data-province]').forEach((btn) => {
@@ -1572,6 +1601,124 @@ function openBargainSheet() {
         <div class="filter-group-title">十、报名窗口内怎么盯</div>
         <ul class="policy-list">
           ${win.trackTips.map((p) => `<li>${escapeHtml(p)}</li>`).join('')}
+        </ul>
+      </div>
+    `,
+  });
+}
+
+/* ───────────────── 历年公告弹层 ───────────────── */
+
+/** 公告数据级别徽章（官方 / 第三方 / 预测），复用推荐页的四级配色 */
+function archiveLevelBadge(key) {
+  const lv = (state.catalogs?.announcementLevels || []).find((l) => l.key === key);
+  if (!lv) return '';
+  return `<span class="badge" style="background:${lv.accent};color:${lv.color}">${escapeHtml(lv.short || lv.name)}</span>`;
+}
+
+/** 单份公告卡：年份 + 标题 + 级别 → 发布/规模 → 时间节点 → 逐年变化 → 来源 */
+function archiveItemCard(it) {
+  const tl = it.timeline || [];
+  return `<div class="ann-item">
+    <div class="ann-head">
+      <span class="ann-year">${escapeHtml(String(it.year))}</span>
+      <span class="ann-title">${escapeHtml(it.title)}</span>
+      ${archiveLevelBadge(it.level)}
+    </div>
+    ${it.publishDate ? `<div class="region-line"><b>公告发布</b>：${escapeHtml(it.publishDate)}</div>` : ''}
+    ${it.scale ? `<div class="region-line"><b>招录规模</b>：${escapeHtml(it.scale)}</div>` : ''}
+    ${
+      tl.length
+        ? `<div class="kv-list mt-6">
+            ${tl
+              .map(
+                (t) => `<div class="kv">
+                  <div class="kv-key" style="width:92px">${escapeHtml(t.label)}</div>
+                  <div class="kv-val num">${escapeHtml(t.value)}</div>
+                </div>`
+              )
+              .join('')}
+          </div>`
+        : ''
+    }
+    ${it.highlight ? `<div class="note-box mt-6">${escapeHtml(it.highlight)}</div>` : ''}
+    ${
+      (it.stats || []).length
+        ? `<div class="ann-stats mt-6">
+            ${it.stats
+              .map(
+                (s) => `<div class="ann-stat">
+                  ${archiveLevelBadge(s.level)}<span class="grow">${escapeHtml(s.text)}</span>
+                  ${bestSource(s)}
+                </div>`
+              )
+              .join('')}
+          </div>`
+        : ''
+    }
+    ${bestSource(it)}
+  </div>`;
+}
+
+function openAnnouncementSheet() {
+  const arc = state.catalogs?.announcementArchive;
+  if (!arc?.groups?.length) {
+    toast('历年公告数据加载中，请稍后重试');
+    return;
+  }
+  const all = arc.groups.flatMap((g) => g.items || []);
+  const years = [...new Set(all.map((i) => i.year))].sort();
+  const yearText = years.length > 1 ? `${years[0]}–${years[years.length - 1]}` : `${years[0] ?? ''}`;
+  const officialCount = all.filter((i) => i.level === 'official').length;
+
+  openSheet({
+    title: '历年公告',
+    subtitle: `${all.length} 份往年公告原文 · ${escapeHtml(yearText)} 年度 · 更新于 ${escapeHtml(arc.updatedAt || '')}`,
+    content: `
+      <div class="notice notice-info">${icon('calendar', { size: 16 })}<div class="grow">${escapeHtml(arc.intro)}</div></div>
+      <div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow">${escapeHtml(arc.caveat)}</div></div>
+
+      <div class="best-legend mt-10">
+        ${(state.catalogs?.announcementLevels || [])
+          .map(
+            (l) => `<span class="best-legend-item"><span class="badge" style="background:${l.accent};color:${l.color}">${escapeHtml(l.name)}</span>
+              <span class="tiny muted">${
+                l.key === 'official'
+                  ? '官网原文，日期可直接引用'
+                  : l.key === 'thirdparty'
+                    ? '第三方整理，建议回官网复核'
+                    : '按往年规律推算，非官方承诺'
+              }</span></span>`
+          )
+          .join('')}
+      </div>
+
+      <div class="filter-group mt-14">
+        <div class="filter-group-title">收录概览</div>
+        <div class="kv-list">
+          <div class="kv"><div class="kv-key" style="width:92px">公告份数</div><div class="kv-val num">${all.length} 份</div></div>
+          <div class="kv"><div class="kv-key" style="width:92px">官方原文</div><div class="kv-val num">${officialCount} 份</div></div>
+          <div class="kv"><div class="kv-key" style="width:92px">覆盖考试</div><div class="kv-val">${arc.groups.map((g) => escapeHtml(g.short || g.name)).join(' · ')}</div></div>
+          <div class="kv"><div class="kv-key" style="width:92px">归档更新</div><div class="kv-val num">${escapeHtml(arc.updatedAt || '—')}</div></div>
+        </div>
+      </div>
+
+      ${arc.groups
+        .map(
+          (g, gi) => `<div class="filter-group">
+            <div class="filter-group-title">${gi + 1}. ${escapeHtml(g.name)}（${(g.items || []).length} 份）</div>
+            ${(g.items || []).map(archiveItemCard).join('')}
+          </div>`
+        )
+        .join('')}
+
+      <div class="filter-group">
+        <div class="filter-group-title">怎么用这份归档</div>
+        <ul class="policy-list">
+          <li>同一考试的相邻年份对着看：报名窗口通常几乎不动，真正会挪的是<b>笔试日期</b>——用它排备考节奏，不要用它是当年承诺。</li>
+          <li>省考只看你目标省份的那一两条：各省公告分散在省人社厅 / 人事考试网，本归档未逐省穷举，缺的省份请以省官网为准。</li>
+          <li>取消 / 核减职位公告单独看：那是最真实的「报名人数不足」证据，比任何机构估算都硬，岗位库里同批次的职位已按原文收录。</li>
+          <li>公告一发布，本应用只更新提醒节点，不替你判断能不能报——户籍、专业、应届身份仍需逐条对照职位表。</li>
         </ul>
       </div>
     `,

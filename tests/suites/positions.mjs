@@ -483,6 +483,54 @@ export function positionSuite({ admin, user, baseUrl }) {
     );
   });
 
+  s.test('岗位目录含历年公告归档：按考试分组、每份带时间节点与可点开的来源', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const arc = res.body.data.announcementArchive;
+    assert(arc && Array.isArray(arc.groups) && arc.groups.length >= 4, '历年公告应按考试类型分组');
+    assert(arc.intro && arc.caveat, '归档应同时给出说明与收录范围声明');
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(arc.updatedAt || ''), '归档应带更新日期');
+
+    const levels = (res.body.data.announcementLevels || []).map((l) => l.key);
+    assert(levels.includes('official') && levels.includes('thirdparty'), '公告级别应复用官方 / 第三方');
+
+    const all = arc.groups.flatMap((g) => g.items || []);
+    assert(all.length >= 10, `历年公告应不少于 10 份，实际 ${all.length}`);
+    // 分组 key 与考试类型对齐，前端按组渲染
+    for (const g of arc.groups) {
+      assert(g.key && g.name && (g.items || []).length > 0, `分组 ${g.key || '?'} 应有名称与非空条目`);
+    }
+    // 每份公告：年度 + 标题 + 级别 + 时间轴 + 来源链接
+    for (const it of all) {
+      assert(Number.isInteger(it.year) && it.year >= 2024, `公告年份应有效：${it.title}`);
+      assert(it.title && it.level, `公告 ${it.year} 应带标题与数据级别`);
+      assert(levels.includes(it.level), `公告级别 ${it.level} 应在级别表中：${it.title}`);
+      assert(Array.isArray(it.timeline) && it.timeline.length >= 2, `公告应带时间节点：${it.title}`);
+      assert(
+        it.timeline.every((t) => t.label && t.value),
+        `时间节点应每项都有名称与日期：${it.title}`
+      );
+      assert(/^https?:\/\//.test(it.sourceUrl || ''), `公告应带可点开的原文链接：${it.title}`);
+      assert(it.sourceName, `公告应标注来源名称：${it.title}`);
+      // 发布日期允许精确到月：部分公告原文只给到月份，不补造具体日期
+      assert(
+        it.publishDate === undefined || /^\d{4}-\d{2}(-\d{2})?$/.test(it.publishDate),
+        `发布日期格式（允许 YYYY-MM 或 YYYY-MM-DD）：${it.title} → ${it.publishDate}`
+      );
+      for (const st of it.stats || []) {
+        assert(st.text && levels.includes(st.level), `统计条目应带正文与级别：${it.title}`);
+        assert(/^https?:\/\//.test(st.sourceUrl || ''), `统计条目应带来源链接：${it.title}`);
+      }
+    }
+    // 国考分组应有多年度，才能做「逐年对照」
+    const gk = arc.groups.find((g) => g.key === 'guokao');
+    assert(gk && gk.items.length >= 2, '国考归档应含多个年度以便逐年对照');
+    assert(
+      gk.items.some((i) => /报名/.test((i.timeline || []).map((t) => t.label).join(''))),
+      '国考条目时间轴应含报名窗口'
+    );
+  });
+
   s.test('政策接口含云南省考合格线 + 分数口径校准 + 人才引进 + 低门槛考试清单', async () => {
     const res = await admin.get('/api/positions/policies', { token: null });
     assertEqual(res.body.code, 0, '业务码');

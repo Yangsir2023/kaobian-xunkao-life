@@ -10,6 +10,7 @@
  */
 
 import { BEST_RECOMMEND } from './best-recommend.mjs';
+import { ANNOUNCEMENT_ARCHIVE, ANNOUNCEMENT_LEVELS } from './announcement-archive.mjs';
 
 /** 31 个省级行政区 + 中央机关（国考职位归属） */
 export const PROVINCES = [
@@ -860,6 +861,8 @@ export function publicCatalogs() {
     nearBargainMarks: NEAR_BARGAIN_MARKS,
     bargainGuide: BARGAIN_GUIDE,
     bestRecommend: BEST_RECOMMEND,
+    announcementArchive: ANNOUNCEMENT_ARCHIVE,
+    announcementLevels: ANNOUNCEMENT_LEVELS,
     sorts: SORTS,
   };
 }

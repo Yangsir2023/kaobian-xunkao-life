@@ -886,6 +886,36 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 .best-banner-line { font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
 .best-banner > svg { flex: none; color: var(--primary); }
 
+/* 历年公告横幅：与推荐横幅同形，换成青色系以区分「已发生的档案」和「要做的决策」 */
+.best-banner.is-archive {
+  background: linear-gradient(135deg, #E9F6F4 0%, #F1F4FF 100%);
+  border-color: #B9DDD6;
+}
+.best-banner.is-archive .best-banner-icon { background: var(--ok); }
+.best-banner.is-archive .best-banner-title { color: #0B5F52; }
+.best-banner.is-archive > svg { color: var(--ok); }
+
+/* 历年公告：单份公告卡 */
+.ann-item {
+  padding: 10px 0 12px;
+  border-top: 1px dashed var(--border);
+}
+.ann-item:first-of-type { border-top: none; padding-top: 2px; }
+.ann-head { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+.ann-year {
+  flex: none; font-family: var(--font-num); font-size: 12px; font-weight: 700;
+  color: var(--ok); background: var(--ok-weak);
+  padding: 1px 6px; border-radius: 6px;
+}
+.ann-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 650; line-height: 1.45; color: var(--text); }
+.ann-stats { display: flex; flex-direction: column; gap: 6px; }
+.ann-stat { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-2); line-height: 1.5; }
+.ann-stat .link-out {
+  flex: none; min-width: 0; max-width: 100%;
+  /* 来源名可能比 360px 一屏还长：允许图标与文字换行，别把弹层撑出横向滚动 */
+  flex-wrap: wrap; word-break: break-all;
+}
+
 .chip-best { font-weight: 650; }
 .chip-best.is-active { background: var(--primary); border-color: var(--primary); color: #fff; }
 

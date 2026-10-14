@@ -349,6 +349,94 @@ async function main() {
       width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
     });
 
+    console.log('\n[7b] 历年公告：入口横幅 + 归档弹层');
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions?u=${Date.now()}` });
+    await sleep(1900);
+    const arcBanner = await cdp.eval(`(() => {
+      const b = document.querySelector('[data-archive]');
+      if (!b) return { found: false };
+      const r = b.getBoundingClientRect();
+      return {
+        found: true,
+        tag: b.tagName,
+        title: b.querySelector('.best-banner-title')?.textContent || '',
+        lines: b.querySelectorAll('.best-banner-line').length,
+        w: Math.round(r.width), h: Math.round(r.height),
+        x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+        barAction: !!document.querySelector('[data-bar-action="archive"]'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('岗位页存在历年公告入口横幅', arcBanner.found, arcBanner.found ? `${arcBanner.w}×${arcBanner.h}` : '未找到');
+    check('横幅标题写明归档份数与年份区间', arcBanner.found && /历年公告 · \d+ 份往年原文（\d{4}–\d{4}）/.test(arcBanner.title), arcBanner.title);
+    check('横幅有标题与两行摘要', arcBanner.found && arcBanner.lines === 2);
+    check('顶栏有历年公告图标按钮', arcBanner.barAction === true);
+    check('480px 下横幅不撑破页面', arcBanner.found && arcBanner.docOverflow <= 1, `+${arcBanner.docOverflow}`);
+
+    await cdp.click(arcBanner.x, arcBanner.y);
+    await sleep(900);
+    const arcSheet = await cdp.eval(`(() => {
+      const t = document.querySelector('.sheet-body')?.innerText || '';
+      return {
+        open: !!document.querySelector('.sheet-panel'),
+        title: document.querySelector('.sheet-title')?.textContent || '',
+        groups: document.querySelectorAll('.sheet-body .filter-group').length,
+        items: document.querySelectorAll('.sheet-body .ann-item').length,
+        years: document.querySelectorAll('.sheet-body .ann-year').length,
+        timeline: document.querySelectorAll('.sheet-body .ann-item .kv').length,
+        sources: document.querySelectorAll('.sheet-body .ann-item .link-out').length,
+        badges: document.querySelectorAll('.sheet-body .ann-item .badge').length,
+        levels: ['官方公告', '第三方整理', '预测推算'].filter((k) => t.includes(k)).length,
+        caveats: /收录范围有限/.test(t),
+        has2025: t.includes('2025'),
+        bodyOverflow: (() => { const b = document.querySelector('.sheet-body'); return b ? b.scrollWidth - b.clientWidth : -1; })(),
+      };
+    })()`);
+    check('点击后归档弹层打开', arcSheet.open === true);
+    check('弹层标题正确', arcSheet.title === '历年公告', arcSheet.title);
+    check('按考试类型分组渲染', arcSheet.groups >= 5, `${arcSheet.groups} 组`);
+    check('公告卡渲染', arcSheet.items >= 10, `${arcSheet.items} 份`);
+    check('每份公告带年份徽标', arcSheet.years >= 10, `${arcSheet.years} 个`);
+    check('时间节点渲染', arcSheet.timeline >= 40, `${arcSheet.timeline} 行`);
+    check('来源外链渲染', arcSheet.sources >= 10, `${arcSheet.sources} 条`);
+    check('数据级别徽标渲染', arcSheet.badges >= 10, `${arcSheet.badges} 个`);
+    check('三档级别图例齐全', arcSheet.levels === 3, `${arcSheet.levels}/3`);
+    check('收录范围声明在（不承诺穷举）', arcSheet.caveats === true);
+    check('归档含往年度（2025 及以前）', arcSheet.has2025 === true);
+    check('480px 下归档弹层无横向溢出', arcSheet.bodyOverflow <= 1, `+${arcSheet.bodyOverflow}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(400);
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360, height: 780, deviceScaleFactor: 1, mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions?u=${Date.now()}` });
+    await sleep(1900);
+    const arcNarrow = await cdp.eval(`(() => {
+      document.querySelector('[data-archive]')?.click();
+      return { clicked: true };
+    })()`);
+    await sleep(900);
+    const arcNarrowState = await cdp.eval(`(() => {
+      const body = document.querySelector('.sheet-body');
+      const panel = document.querySelector('.sheet-panel');
+      return {
+        open: !!panel,
+        overflow: body ? body.scrollWidth - body.clientWidth : -1,
+        panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : -1,
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('360px 下归档弹层仍能打开', arcNarrowState.open === true && arcNarrow.clicked === true);
+    check('360px 下归档弹层无横向溢出（弹层 / 面板 / 整页）',
+      arcNarrowState.overflow <= 1 && arcNarrowState.panelOverflow <= 1 && arcNarrowState.docOverflow <= 1,
+      `body+${arcNarrowState.overflow} panel+${arcNarrowState.panelOverflow} doc+${arcNarrowState.docOverflow}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(300);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+
     console.log('\n[8] 首页 / 分类页的标签条也自动增强');
     for (const hash of ['/', '/categories']) {
       await cdp.send('Page.navigate', { url: `${BASE}/#${hash}` });
