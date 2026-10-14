@@ -318,6 +318,35 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
   scrollbar-width: none; -ms-overflow-style: none;
 }
 .chip-scroll::-webkit-scrollbar { display: none; }
+
+/* ── 横向标签条外层：拖动滑动 + 两端翻页 ────────────────
+   .chip-scroll 隐藏了原生滚动条，桌面上既看不到还有内容也拖不动；
+   这层负责放翻页按钮，并把鼠标拖动手势变成横向滚动。 */
+.chip-rail { position: relative; }
+.chip-rail .chip-scroll { cursor: grab; }
+.chip-rail .chip-scroll.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+  scroll-behavior: auto;
+}
+.chip-nav {
+  display: none; position: absolute; top: calc(50% - 2px); transform: translateY(-50%);
+  width: 28px; height: 28px; padding: 0; border-radius: 50%;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text-2); cursor: pointer; z-index: 2;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, .14);
+  transition: color .15s, border-color .15s, background .15s;
+}
+.chip-rail.has-prev > .chip-nav.is-prev,
+.chip-rail.has-next > .chip-nav.is-next { display: inline-flex; }
+.chip-nav.is-prev { left: -2px; }
+.chip-nav.is-next { right: -2px; }
+.chip-nav:active { background: var(--surface-3); }
+@media (hover: hover) {
+  .chip-nav:hover { color: var(--primary); border-color: var(--primary); }
+}
+
 .chip {
   flex: none; height: 32px; padding: 0 13px; border-radius: 16px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text-2);

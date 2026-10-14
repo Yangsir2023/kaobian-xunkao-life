@@ -12,6 +12,7 @@
     "dev": "node --watch server/index.mjs",
     "seed": "node server/seed.mjs",
     "test": "node tests/run.mjs",
+    "smoke": "node scripts/smoke-ui.mjs",
     "acceptance": "node scripts/acceptance.mjs"
   },
   "dependencies": {},

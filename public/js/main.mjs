@@ -6,7 +6,7 @@ import { icon } from './icons.mjs';
 import { api, ApiError, onUnauthorized } from './api.mjs';
 import { session, bindCrossTabSync } from './session.mjs';
 import { createRouter, navigate } from './router.mjs';
-import { setHtml, $, toast, toastErr, skeletonCards, errorState } from './ui.mjs';
+import { setHtml, $, toast, toastErr, skeletonCards, errorState, initChipRails } from './ui.mjs';
 import { escapeHtml } from './utils.mjs';
 
 import homePage from './pages/home.mjs';
@@ -158,6 +158,7 @@ async function dispatch(matched) {
 
 async function boot() {
   bindCrossTabSync();
+  initChipRails();
   renderTabBar('home');
 
   onUnauthorized((reason) => {
