@@ -175,6 +175,8 @@ export const api = {
     request('/api/auth/wechat/ticket', { method: 'POST', body: { ticket }, auth: false }),
 
   categories: () => request('/api/catalog/categories', { auth: false }),
+  /** 分类详情（今年公告 / 明年预测 / 户籍口径 / 历年公告 / 岗位深链） */
+  categoryDetail: (key) => request(`/api/categories/${encodeURIComponent(key)}/detail`, { auth: false }),
   reminders: (query = {}) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {

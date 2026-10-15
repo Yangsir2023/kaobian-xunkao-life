@@ -17,18 +17,21 @@ export function reminderSuite({ admin, user, baseUrl }) {
     );
   });
 
-  s.test('分类目录返回十大类且带统计字段', async () => {
+  s.test('分类目录返回十六大类且带统计字段', async () => {
     const res = await admin.get('/api/catalog/categories', { token: null });
-    assertEqual(res.body.data.categories.length, 10, '分类数量');
+    assertEqual(res.body.data.categories.length, 16, '分类数量');
     const keys = res.body.data.categories.map((c) => c.key).sort();
     assertEqual(
       keys.join(','),
-      'guokao,hubei-xuandiao,jundui,liufu,rencai,sanzhiyifu,shengkao,shequ,shiye,xibu',
+      'cunban,dianwang,guokao,hubei-xuandiao,jundui,liufu,nongxin,rencai,sanzhiyifu,shengkao,shequ,shiye,xiaofang,xibu,yancao,zhuanli',
       '分类 key 集合'
     );
     assert(res.body.data.categories.every((c) => typeof c.officialCount === 'number'), '含官方节点计数');
     // 用户（QS 前 200 硕士 + 普通本科）能考的考试类型必须都在分类里
-    for (const k of ['guokao', 'shengkao', 'shiye', 'jundui', 'sanzhiyifu', 'shequ', 'rencai', 'xibu', 'liufu']) {
+    for (const k of [
+      'guokao', 'shengkao', 'shiye', 'jundui', 'sanzhiyifu', 'shequ', 'rencai', 'xibu', 'liufu',
+      'cunban', 'zhuanli', 'yancao', 'dianwang', 'nongxin', 'xiaofang',
+    ]) {
       assert(keys.includes(k), `分类应含 ${k}`);
     }
   });

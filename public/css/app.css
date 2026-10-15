@@ -983,3 +983,57 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 .hidden { display: none !important; }
 .spin { animation: spin 1s linear infinite; }
 .fade-in { animation: fade-in .2s ease; }
+
+/* ═══════════════════ 分类详情页（/category/:key）═══════════════════ */
+
+.cd-hero {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.cd-hero-icon {
+  width: 42px; height: 42px; border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.cd-hero-name { font-size: 16px; font-weight: 700; margin: 0 0 2px; color: var(--text); }
+.cd-hero-meta { font-size: 11.5px; color: var(--text-3); margin-bottom: 6px; }
+.cd-hero-desc { font-size: 12.5px; color: var(--text-2); line-height: 1.65; margin: 0; }
+
+.cd-summary {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 11px 13px; border-radius: var(--radius);
+  background: var(--primary-weak);
+}
+.cd-summary .badge { flex: none; margin-top: 1px; }
+.cd-summary p { margin: 0; font-size: 13px; font-weight: 650; color: var(--primary-dark); line-height: 1.6; }
+
+.cd-block-headline { font-size: 13px; font-weight: 650; color: var(--text); line-height: 1.65; margin: 0 0 8px; }
+.cd-text { font-size: 12.5px; color: var(--text-2); line-height: 1.75; margin: 0; white-space: pre-line; }
+
+.cd-points { display: flex; flex-direction: column; }
+.cd-point { display: flex; flex-direction: column; gap: 3px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.cd-point:last-child { border-bottom: none; padding-bottom: 2px; }
+.cd-point-label { font-size: 11px; font-weight: 650; color: var(--text-3); }
+.cd-point-value { font-size: 12.5px; color: var(--text); line-height: 1.7; white-space: pre-line; }
+.cd-point-value b { font-weight: 650; }
+.cd-point .link-out { margin-top: 2px; }
+
+.cd-quote {
+  margin: 8px 0 0; padding: 9px 12px;
+  border-left: 3px solid var(--primary); background: var(--surface-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12px; color: var(--text-2); line-height: 1.7;
+}
+.cd-stat .link-out { display: inline-flex; margin-top: 4px; }
+
+.cd-links { display: flex; flex-direction: column; gap: 8px; }
+.cd-link-row {
+  display: flex; align-items: center; gap: 10px; justify-content: space-between;
+  padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius);
+}
+.cd-link-name { font-size: 12px; color: var(--text-2); line-height: 1.5; min-width: 0; }
+.cd-link-row .link-out { flex: none; }
+
+.cd-note { display: flex; gap: 8px; font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+.cd-note .icon { flex: none; margin-top: 3px; color: var(--warn); }
+.cd-note + .cd-note { margin-top: 10px; }

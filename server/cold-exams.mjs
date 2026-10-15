@@ -29,6 +29,7 @@ export const COLD_EXAMS = {
       items: [
         {
           name: '专利审查员全国统考',
+          examType: 'zhuanli',
           org: '国家知识产权局专利局 · 专利审查协作中心',
           level: 'official',
           hukou: 'open',
@@ -51,6 +52,7 @@ export const COLD_EXAMS = {
       items: [
         {
           name: '中国烟草系统招聘（全国 / 各省公司）',
+          examType: 'yancao',
           org: '国家烟草专卖局 · 中国烟草总公司及各省（区、市）公司',
           level: 'official',
           hukou: 'open',
@@ -80,6 +82,7 @@ export const COLD_EXAMS = {
         },
         {
           name: '国家电网 / 南方电网 高校毕业生统一考试',
+          examType: 'dianwang',
           org: '国家电网有限公司 / 中国南方电网有限责任公司（一批 · 二批）',
           level: 'thirdparty',
           hukou: 'open',
@@ -103,6 +106,7 @@ export const COLD_EXAMS = {
         },
         {
           name: '农商行 / 农村信用社系统全省统考',
+          examType: 'nongxin',
           org: '各省农村信用社联合社（如湖北省农村信用社联合社）',
           level: 'official',
           hukou: 'open',
@@ -125,6 +129,7 @@ export const COLD_EXAMS = {
       items: [
         {
           name: '国家综合性消防救援队伍消防员招录',
+          examType: 'xiaofang',
           org: '应急管理部（国家综合性消防救援队伍消防员招录工作办公室）',
           level: 'official',
           hukou: 'open',

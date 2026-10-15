@@ -31,6 +31,22 @@ function findChrome() {
   throw new Error('未找到 Chrome / Edge，请先安装或改用 Playwright');
 }
 
+/**
+ * 组装一个"没有代理"的子进程环境。
+ * 本机（以及 CI/沙箱）常注入 HTTP_PROXY / HTTPS_PROXY 指向 127.0.0.1 的转发代理，
+ * 无头 Chrome 会把访问本机 127.0.0.1:<port> 的请求也送进代理，从而 ERR_CONNECTION_REFUSED。
+ * 因此剥掉代理类环境变量，并显式声明 NO_PROXY 覆盖回环地址。
+ */
+function cleanEnv() {
+  const env = { ...process.env };
+  for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']) {
+    delete env[k];
+  }
+  env.NO_PROXY = '127.0.0.1,localhost,::1';
+  env.no_proxy = env.NO_PROXY;
+  return env;
+}
+
 class Cdp {
   constructor(ws) {
     this.ws = ws;
@@ -169,8 +185,10 @@ async function main() {
     '--disable-gpu',
     '--window-size=480,960',
     '--no-proxy-server',
+    '--proxy-server=direct://',
+    '--proxy-bypass-list=*',
     'about:blank',
-  ], { stdio: 'ignore' });
+  ], { stdio: 'ignore', env: cleanEnv() });
 
   let cdp;
   try {
@@ -595,6 +613,116 @@ async function main() {
       `body+${coldNarrow.overflow} panel+${coldNarrow.panelOverflow} doc+${coldNarrow.docOverflow}`);
     await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
     await sleep(300);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+
+    console.log('\n[7e] 分类详情页（/category/:key）');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${BASE}/#/categories?u=${Date.now()}` });
+    await sleep(1900);
+    const catGrid = await cdp.eval(`(() => ({
+      cards: document.querySelectorAll('.cat-card').length,
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+    }))()`);
+    check('分类页渲染十六张类别卡', catGrid.cards === 16, `${catGrid.cards} 张`);
+    check('分类页不撑破 480px 页面', catGrid.docOverflow <= 1, `+${catGrid.docOverflow}`);
+
+    const rencaiCard = await cdp.eval(`(() => {
+      const c = Array.from(document.querySelectorAll('.cat-card')).find((el) => el.dataset.cat === 'rencai');
+      if (!c) return { found: false };
+      c.scrollIntoView({ block: 'nearest', inline: 'center' });
+      const r = c.getBoundingClientRect();
+      return {
+        found: true,
+        name: c.querySelector('.cat-name')?.textContent || '',
+        x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+      };
+    })()`);
+    check('找到「人才引进」类别卡', rencaiCard.found === true, rencaiCard.name);
+    await cdp.click(rencaiCard.x, rencaiCard.y);
+    await sleep(1300);
+    const detail = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hash: location.hash,
+        hero: !!document.querySelector('.cd-hero'),
+        heroName: document.querySelector('.cd-hero-name')?.textContent || '',
+        summary: !!document.querySelector('.cd-summary'),
+        points: document.querySelectorAll('#app-main .cd-point').length,
+        sources: document.querySelectorAll('#app-main .link-out').length,
+        posBanner: !!document.querySelector('[data-cd-positions]'),
+        posText: document.querySelector('[data-cd-positions] .best-banner-title')?.textContent || '',
+        back: !!document.querySelector('[data-nav-back]'),
+        hasThisYear: t.includes('今年动态'),
+        hasForecast: t.includes('明年预测'),
+        hasHukou: t.includes('户籍口径'),
+        hasQs200: t.includes('QS 前 200'),
+        hasDingxi: t.includes('定西'),
+        hasUnverified: t.includes('未核实'),
+        hasOfficialSite: t.includes('官方入口'),
+        hasNotes: t.includes('注意事项'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('点击卡片进入详情页（hash 变为 /category/rencai）', detail.hash.startsWith('#/category/rencai'), detail.hash);
+    check('详情页顶栏有返回按钮', detail.back === true);
+    check('头部渲染类别名', detail.hero && detail.heroName.includes('人才引进'), detail.heroName);
+    check('今年状态摘要渲染', detail.summary === true && detail.hasThisYear === true);
+    check('今年动态 / 明年预测 / 户籍口径三块齐全',
+      detail.hasThisYear && detail.hasForecast && detail.hasHukou);
+    check('户籍未核实显式标注（不静默省略）', detail.hasUnverified === true);
+    check('QS 前 200 真实公告渲染（含定西）', detail.points >= 5 && detail.hasQs200 && detail.hasDingxi, `${detail.points} 个信息点`);
+    check('来源外链渲染', detail.sources >= 6, `${detail.sources} 条`);
+    check('岗位深链横幅渲染', detail.posBanner === true && /岗位库 · \d+ 个公共岗位/.test(detail.posText), detail.posText);
+    check('官方入口与注意事项渲染', detail.hasOfficialSite && detail.hasNotes);
+    check('480px 下详情页无横向溢出', detail.docOverflow <= 1, `+${detail.docOverflow}`);
+
+    await cdp.eval(`document.querySelector('[data-cd-positions]')?.click()`);
+    await sleep(1500);
+    const deepLink = await cdp.eval(`(() => ({
+      hash: location.hash,
+      listText: (document.getElementById('pos-list')?.innerText || '').slice(0, 300),
+    }))()`);
+    check('深链跳到岗位库并带 examType=rencai', deepLink.hash.includes('examType=rencai'), deepLink.hash);
+    check('岗位库按人才引进过滤（列表出现该考试类型）', /人才引进/.test(deepLink.listText), deepLink.listText.slice(0, 60));
+
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/xiaofang?u=${Date.now()}` });
+    await sleep(1400);
+    const cold = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hero: document.querySelector('.cd-hero-name')?.textContent || '',
+        hasOpen: t.includes('全国可报'),
+        has17000: t.includes('17000'),
+        hasMale: t.includes('仅招男性'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('消防救援详情页渲染', cold.hero.includes('消防救援'), cold.hero);
+    check('户籍口径为全国可报', cold.hasOpen === true);
+    check('今年动态含招录规模与限制', cold.has17000 && cold.hasMale);
+    check('480px 下无横向溢出', cold.docOverflow <= 1, `+${cold.docOverflow}`);
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360, height: 780, deviceScaleFactor: 1, mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/rencai?u=${Date.now()}` });
+    await sleep(1400);
+    const detailNarrow = await cdp.eval(`(() => {
+      const main = document.getElementById('app-main');
+      return {
+        hero: !!main?.querySelector('.cd-hero'),
+        overflow: main ? main.scrollWidth - main.clientWidth : -1,
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('360px 下详情页仍渲染', detailNarrow.hero === true);
+    check('360px 下无横向溢出（内容区 / 整页）',
+      detailNarrow.overflow <= 1 && detailNarrow.docOverflow <= 1,
+      `main+${detailNarrow.overflow} doc+${detailNarrow.docOverflow}`);
     await cdp.send('Emulation.setDeviceMetricsOverride', {
       width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
     });

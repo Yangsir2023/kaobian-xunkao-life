@@ -11,6 +11,7 @@ import { escapeHtml } from './utils.mjs';
 
 import homePage from './pages/home.mjs';
 import categoriesPage from './pages/categories.mjs';
+import categoryDetailPage from './pages/category-detail.mjs';
 import positionsPage from './pages/positions.mjs';
 import detailPage from './pages/detail.mjs';
 import editorPage from './pages/editor.mjs';
@@ -23,6 +24,7 @@ import wechatTicketPage from './pages/wechat-ticket.mjs';
 const routes = [
   { path: '/', page: homePage },
   { path: '/categories', page: categoriesPage },
+  { path: '/category/:key', page: categoryDetailPage },
   { path: '/positions', page: positionsPage },
   { path: '/reminders/new', page: editorPage },
   { path: '/reminders/:id', page: detailPage },

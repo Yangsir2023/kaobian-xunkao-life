@@ -15,6 +15,7 @@ import { resolveIdentity } from './security/auth.mjs';
 import { writeAudit, AUDIT_ACTIONS } from './security/audit.mjs';
 import { registerAuthRoutes } from './routes/auth.mjs';
 import { registerReminderRoutes } from './routes/reminders.mjs';
+import { registerCategoryRoutes } from './routes/category-detail.mjs';
 import { registerPositionRoutes } from './routes/positions.mjs';
 import { registerMeRoutes } from './routes/me.mjs';
 import { registerUploadRoutes } from './routes/uploads.mjs';
@@ -73,6 +74,7 @@ export async function buildServer() {
   const router = createRouter();
   registerAuthRoutes(router);
   registerReminderRoutes(router);
+  registerCategoryRoutes(router);
   registerPositionRoutes(router);
   registerMeRoutes(router);
   registerUploadRoutes(router);

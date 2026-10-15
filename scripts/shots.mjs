@@ -27,6 +27,21 @@ function findChrome() {
   throw new Error('未找到 Chrome / Edge');
 }
 
+/**
+ * 剥掉代理类环境变量后再启动 Chrome。
+ * 本机若注入 HTTP_PROXY / HTTPS_PROXY（指向 127.0.0.1 的转发代理），
+ * 无头 Chrome 会把访问本机服务的请求也送进代理，导致 ERR_CONNECTION_REFUSED。
+ */
+function cleanEnv() {
+  const env = { ...process.env };
+  for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']) {
+    delete env[k];
+  }
+  env.NO_PROXY = '127.0.0.1,localhost,::1';
+  env.no_proxy = env.NO_PROXY;
+  return env;
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function fetchJson(path) {
@@ -126,9 +141,12 @@ async function main() {
       '--no-default-browser-check',
       '--disable-gpu',
       '--window-size=480,960',
+      '--no-proxy-server',
+      '--proxy-server=direct://',
+      '--proxy-bypass-list=*',
       'about:blank',
     ],
-    { stdio: 'ignore' }
+    { stdio: 'ignore', env: cleanEnv() }
   );
 
   let cdp;
@@ -274,12 +292,12 @@ async function main() {
     await scrollSheet(0.3);
     await sheetShot(cdp, '21-policy-yunnan-lines');
 
-    // 7. 提醒首页（公共招考节点）与分类页：十条战线都在提醒里
+    // 7. 提醒首页（公共招考节点）与分类页：十六条战线都在提醒里
     await closeSheet();
     await goto('/');
     await shotLong('22-reminders-home');
     await goto('/categories');
-    await shotLong('23-categories-ten');
+    await shotLong('23-categories-all');
 
     // 8. 最佳推荐区域：入口横幅 + 弹层三段（国考 / 省考 / 其他考试）
     await goto('/positions');
@@ -291,6 +309,15 @@ async function main() {
     await sheetShot(cdp, '28-best-recommend-shengkao');
     await scrollSheet(1);
     await sheetShot(cdp, '29-best-recommend-others');
+
+    // 9. 类别详情页：人才引进（含明年预测 + 户籍未核实 + QS200 通道）与消防救援（全国可报）
+    await closeSheet();
+    await goto('/category/rencai');
+    await sleep(900);
+    await shotLong('30-category-detail-rencai', 2600);
+    await goto('/category/xiaofang');
+    await sleep(900);
+    await shotLong('31-category-detail-xiaofang', 2200);
   } finally {
     try {
       if (cdp) await cdp.send('Browser.close');

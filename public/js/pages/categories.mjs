@@ -1,6 +1,6 @@
 /**
  * 考试分类与筛选页
- * 上半部分：八大类招考入口网格（含「我的提醒数 / 官方节点数」）
+ * 上半部分：十六类招考入口网格（含「我的提醒数 / 官方节点数」），点击卡片进入类别详情页
  * 下半部分：按选中分类过滤的结果列表，支持筛选弹层（状态 / 时间窗 / 关键词 / 排序）
  */
 import { api } from '../api.mjs';
@@ -58,7 +58,7 @@ function shellHtml() {
     ${scopeNoticeHtml()}
     <div class="section-head">
       <h2 class="section-title">招考类别</h2>
-      <span class="section-hint">${state.selected.length ? `已选 ${state.selected.length} 类` : '点击卡片筛选'}</span>
+      <span class="section-hint">点击卡片看类别详情</span>
     </div>
     <div class="cat-grid">${state.categories.map(catCardHtml).join('')}</div>
 
@@ -69,7 +69,7 @@ function shellHtml() {
     <div id="result-list">${resultListHtml()}</div>
     <div class="notice notice-info mt-14">
       ${icon('info', { size: 17 })}
-      <div class="grow">分类说明：国考、省考、事业编、社区工作者、湖北选调、军队文职、三支一扶、留服认证八类覆盖主流招考路径；点击卡片可多选。</div>
+      <div class="grow">点击卡片进入类别详情页：今年公告 / 明年预测 / 户籍口径 / 历年公告 / 匹配岗位一页看清；多类别筛选请用右上角「筛选」。</div>
     </div>
   `;
 }
@@ -86,13 +86,12 @@ function scopeNoticeHtml() {
 }
 
 function catCardHtml(cat) {
-  const selected = state.selected.includes(cat.key);
-  return `<button class="cat-card ${selected ? 'is-selected' : ''}" data-cat="${cat.key}">
+  return `<button class="cat-card" data-cat="${cat.key}">
     <div class="row">
       <div class="cat-icon" style="background:${cat.accent};color:${cat.color}">
         ${icon(cat.icon, { size: 19 })}
       </div>
-      ${selected ? `<span style="margin-left:auto;color:var(--primary)">${icon('check', { size: 17 })}</span>` : ''}
+      <span style="margin-left:auto;color:var(--text-3)">${icon('chevronRight', { size: 15, className: 'icon icon-sm' })}</span>
     </div>
     <div>
       <div class="cat-name">${escapeHtml(cat.short)}</div>
@@ -178,12 +177,7 @@ function rowHtml(row) {
 function bind(root) {
   root.querySelectorAll('[data-cat]').forEach((card) => {
     card.addEventListener('click', () => {
-      const key = card.dataset.cat;
-      state.selected = state.selected.includes(key)
-        ? state.selected.filter((k) => k !== key)
-        : [...state.selected, key];
-      card.classList.toggle('is-selected', state.selected.includes(key));
-      refreshResults(root);
+      window.location.hash = `/category/${card.dataset.cat}`;
     });
   });
 
@@ -223,14 +217,6 @@ function bind(root) {
       window.location.hash = `/reminders/${card.dataset.id}`;
     });
   });
-}
-
-function refreshResults(root) {
-  const wrap = root.querySelector('#result-list');
-  if (wrap) wrap.innerHTML = resultListHtml();
-  const head = root.querySelector('.section-head .section-title');
-  if (head && root.querySelector('#open-filter')) head.textContent = resultTitle();
-  bind(root);
 }
 
 function openFilterSheet() {

@@ -66,10 +66,13 @@ export default {
     };
   },
 
-  async render() {
+  async render(ctx) {
     if (!state.catalogs) {
       state.catalogs = await api.positionCatalogs();
     }
+    // 深链支持：分类详情页跳 /positions?examType=rencai 时按查询串初始化筛选；
+    // 无查询串（点标签页进入）则重置，保证「点岗位 tab 看到全部」的直觉
+    applyQueryFilters(ctx?.query);
     await loadList();
     return shellHtml();
   },
@@ -78,6 +81,34 @@ export default {
     bind(root);
   },
 };
+
+/* ───────────────── 深链筛选 ───────────────── */
+
+function applyQueryFilters(query) {
+  const q = query || new URLSearchParams();
+  const examType = (q.get('examType') || '').trim();
+  const province = (q.get('province') || '').trim();
+  const ratioType = (q.get('ratioType') || '').trim();
+  const majorTrack = (q.get('majorTrack') || '').trim();
+  const freshOnly = (q.get('freshOnly') || '').trim();
+  const keyword = (q.get('q') || '').trim();
+  const hasAny = [examType, province, ratioType, majorTrack, freshOnly, keyword].some(Boolean);
+  if (hasAny) {
+    state.examType = examType;
+    state.provinces = province ? [...new Set(province.split(',').map((s) => s.trim()).filter(Boolean))] : [];
+    state.ratioType = ratioType;
+    state.majorTrack = majorTrack;
+    state.freshOnly = freshOnly === 'true' ? 'true' : '';
+    state.query = keyword;
+  } else {
+    state.examType = '';
+    state.provinces = [];
+    state.ratioType = '';
+    state.majorTrack = '';
+    state.freshOnly = '';
+    state.query = '';
+  }
+}
 
 /* ───────────────── 数据 ───────────────── */
 
