@@ -521,6 +521,84 @@ async function main() {
       width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
     });
 
+    console.log('\n[7d] 冷门统考弹层');
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions?u=${Date.now()}` });
+    await sleep(1900);
+    const coldChip = await cdp.eval(`(() => {
+      const c = document.querySelector('[data-cold]');
+      if (!c) return { found: false };
+      c.scrollIntoView({ block: 'nearest', inline: 'center' });
+      const r = c.getBoundingClientRect();
+      return {
+        found: true,
+        label: c.textContent.trim(),
+        x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+      };
+    })()`);
+    check('岗位页有「冷门统考」标签', coldChip.found === true, coldChip.label);
+    await cdp.click(coldChip.x, coldChip.y);
+    await sleep(900);
+    const coldSheet = await cdp.eval(`(() => {
+      const t = document.querySelector('.sheet-body')?.innerText || '';
+      return {
+        open: !!document.querySelector('.sheet-panel'),
+        title: document.querySelector('.sheet-title')?.textContent || '',
+        groups: document.querySelectorAll('.sheet-body .filter-group').length,
+        cards: document.querySelectorAll('.sheet-body .best-pick').length,
+        quotes: document.querySelectorAll('.sheet-body .best-pick .note-box').length,
+        sources: document.querySelectorAll('.sheet-body .best-pick .link-out').length,
+        hasZhuanli: /专利审查员/.test(t),
+        hasYancao: /烟草/.test(t),
+        hasDianwang: /电网/.test(t),
+        hasNongxin: /农商行/.test(t),
+        hasXiaofang: /消防/.test(t),
+        hasPending: /待核实/.test(t),
+        overflow: (() => { const b = document.querySelector('.sheet-body'); return b ? b.scrollWidth - b.clientWidth : -1; })(),
+      };
+    })()`);
+    check('点击后冷门统考弹层打开', coldSheet.open === true);
+    check('弹层标题正确', coldSheet.title === '冷门统考', coldSheet.title);
+    check('按组织方分组渲染', coldSheet.groups >= 5, `${coldSheet.groups} 组`);
+    check('考试卡渲染', coldSheet.cards >= 5, `${coldSheet.cards} 张`);
+    check('每条带依据原文', coldSheet.quotes >= 5, `${coldSheet.quotes} 段`);
+    check('每条带来源外链', coldSheet.sources >= 5, `${coldSheet.sources} 条`);
+    check('含专利审查员', coldSheet.hasZhuanli === true);
+    check('含烟草系统', coldSheet.hasYancao === true);
+    check('含电网系统', coldSheet.hasDianwang === true);
+    check('含农商行 / 农信社', coldSheet.hasNongxin === true);
+    check('含消防救援招录', coldSheet.hasXiaofang === true);
+    check('待核实清单在（不冒充已核实）', coldSheet.hasPending === true);
+    check('480px 下无横向溢出', coldSheet.overflow <= 1, `+${coldSheet.overflow}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(400);
+
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 360, height: 780, deviceScaleFactor: 1, mobile: false,
+    });
+    await cdp.send('Page.navigate', { url: `${BASE}/#/positions?u=${Date.now()}` });
+    await sleep(1900);
+    await cdp.eval(`document.querySelector('[data-cold]')?.click()`);
+    await sleep(900);
+    const coldNarrow = await cdp.eval(`(() => {
+      const body = document.querySelector('.sheet-body');
+      const panel = document.querySelector('.sheet-panel');
+      return {
+        open: !!panel,
+        overflow: body ? body.scrollWidth - body.clientWidth : -1,
+        panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : -1,
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('360px 下冷门统考弹层仍能打开', coldNarrow.open === true);
+    check('360px 下无横向溢出（弹层 / 面板 / 整页）',
+      coldNarrow.overflow <= 1 && coldNarrow.panelOverflow <= 1 && coldNarrow.docOverflow <= 1,
+      `body+${coldNarrow.overflow} panel+${coldNarrow.panelOverflow} doc+${coldNarrow.docOverflow}`);
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(300);
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 480, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+
     console.log('\n[8] 首页 / 分类页的标签条也自动增强');
     for (const hash of ['/', '/categories']) {
       await cdp.send('Page.navigate', { url: `${BASE}/#${hash}` });

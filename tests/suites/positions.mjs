@@ -578,6 +578,47 @@ export function positionSuite({ admin, user, baseUrl }) {
     assertEqual(vague.length, 0, '每条不限户籍的结论都应落到具体年度 / 计划');
   });
 
+  s.test('冷门统考清单：每条都有组织方、户籍口径、依据原文与来源链接', async () => {
+    const res = await admin.get('/api/positions/catalogs', { token: null });
+    assertEqual(res.body.code, 0, '业务码');
+    const cold = res.body.data.coldExams;
+    assert(cold && cold.groups.length >= 3, `冷门统考应按组织方分组，实际 ${cold?.groups?.length}`);
+    assert(cold.intro && cold.caveat, '应同时给出说明与收录范围声明');
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(cold.updatedAt || ''), '应带更新日期');
+    assert(/合同制|劳务派遣/.test(cold.caveat), 'caveat 应写明国企校招不等于编制');
+
+    const hukouKeys = (res.body.data.hukouLevels || []).map((l) => l.key);
+    const examKeys = res.body.data.examTypes.map((t) => t.key);
+    const items = cold.groups.flatMap((g) => g.items || []);
+    assert(items.length >= 5, `冷门统考应不少于 5 类，实际 ${items.length}`);
+
+    for (const g of cold.groups) {
+      assert(g.key && g.name && (g.items || []).length > 0, `分组 ${g.key || '?'} 应有名称与非空条目`);
+    }
+    for (const it of items) {
+      assert(hukouKeys.includes(it.hukou), `户籍口径应在白名单内：${it.name} → ${it.hukou}`);
+      assert(it.org, `应写明组织方：${it.name}`);
+      assert(it.window && it.scale, `应写明窗口与规模：${it.name}`);
+      assert(/^https?:\/\//.test(it.sourceUrl || ''), `应带可点开的来源链接：${it.name}`);
+      assert(it.sourceName, `应标注来源名称：${it.name}`);
+      assert(it.why && it.caution, `每条都应写「为什么值得看」与「注意」：${it.name}`);
+      for (const st of it.stats || []) {
+        assert(st.text && ['official', 'thirdparty', 'forecast'].includes(st.level), `补充条目应带正文与数据级别：${it.name}`);
+        assert(/^https?:\/\//.test(st.sourceUrl || ''), `补充条目应带来源链接：${it.name}`);
+      }
+    }
+    // 冷门统考里至少要有一条「有编制且专业对口」的，否则信息差没意义
+    assert(
+      items.some((i) => i.hukou === 'open' && /编制/.test(i.why + i.caution)),
+      '至少应有一条冷门统考写明编制情况'
+    );
+    // 待核实清单：说了"听说过但没核到"的必须挂在 pending 而不是混进正式清单
+    assert((cold.pending || []).length >= 1, '应有待核实清单（核不到原文的通道不冒充已核实）');
+    for (const p of cold.pending || []) {
+      assert(p.name && p.note, '待核实条目应写明名称与为什么没核到');
+    }
+  });
+
   s.test('政策接口含云南省考合格线 + 分数口径校准 + 人才引进 + 低门槛考试清单', async () => {
     const res = await admin.get('/api/positions/policies', { token: null });
     assertEqual(res.body.code, 0, '业务码');

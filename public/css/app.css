@@ -916,6 +916,9 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
   flex-wrap: wrap; word-break: break-all;
 }
 
+.chip-cold { font-weight: 650; color: var(--warn); }
+.chip-cold.is-active { background: var(--warn); border-color: var(--warn); color: #fff; }
+
 .chip-hukou { font-weight: 650; color: var(--ok); }
 .chip-hukou.is-active { background: var(--ok); border-color: var(--ok); color: #fff; }
 

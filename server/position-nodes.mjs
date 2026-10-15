@@ -1035,6 +1035,14 @@ const SAMPLE_PROFILES = [
   // ── 村官 / 村级后备干部 与西部计划（外地考生也能报的两类基层通道，各 1 类） ──
   { examType: 'cunban', track: 'master_any', degree: 'master', freshOnly: true, ratioType: 'none', score: 62, scoreTotal: 100, planCount: 2, applicants: 2, ratioShortfall: true, ratioFlexible: true, scoreStable: true, unit: (p) => (isCentral(p) ? '中央机关直属单位（村级后备干部）' : `${p}某县乡村振兴村级协理员`), title: '村级后备干部' },
   { examType: 'xibu', track: 'other', degree: 'bachelor', freshOnly: true, ratioType: 'none', score: 58, scoreTotal: 100, planCount: 3, applicants: 3, paidCount: 3, freshInterview: true, unit: (p) => (isCentral(p) ? '大学生志愿服务西部计划（全国项目办）' : `大学生志愿服务西部计划（服务${p}）`), title: '乡村振兴专项志愿者' },
+
+  // ── 冷门统考 5 类（外地考生可报，但公告分散在各系统官网） ──
+  { examType: 'zhuanli', track: 'cs0812', degree: 'master', freshOnly: false, ratioType: 'ratio', score: 116, scoreTotal: 200, planCount: 2, applicants: 24, unit: (p) => `国家知识产权局专利局 · 专利审查协作中心（${p}生源）`, title: '专利审查员（电学领域）' },
+  { examType: 'yancao', track: 'other', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 121, scoreTotal: 200, planCount: 3, applicants: 41, unit: (p) => (isCentral(p) ? '国家烟草专卖局 / 中国烟草总公司（本级）' : `中国烟草总公司${p}省公司`), title: '信息管理岗' },
+  { examType: 'dianwang', track: 'cs0812', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 128, scoreTotal: 200, planCount: 4, applicants: 58, unit: (p) => (isCentral(p) ? '国家电网在京直属单位' : `国网${p}电力（数字化 / 信通）`), title: '计算机类岗' },
+  { examType: 'nongxin', track: 'other', degree: 'bachelor', freshOnly: false, ratioType: 'none', score: 63, scoreTotal: 100, planCount: 2, applicants: 2, ratioShortfall: true, unit: (p) => (isCentral(p) ? '某省联社网络信息中心（本级）' : `${p}农商行（科技岗）`), title: '软件开发岗' },
+  { examType: 'yunyingshang', track: 'cs0812', degree: 'master', freshOnly: true, ratioType: 'ratio', score: 124, scoreTotal: 200, planCount: 5, applicants: 63, unit: (p) => (isCentral(p) ? '中国移动集团总部' : `中国移动${p}分公司`), title: '人工智能 / 大数据岗' },
+  { examType: 'xiaofang', track: 'other', degree: 'bachelor', freshOnly: true, ratioType: 'ratio', score: 108, scoreTotal: 200, planCount: 6, applicants: 19, unit: (p) => (isCentral(p) ? '国家综合性消防救援队伍（机动总队）' : `${p}消防救援总队`), title: '消防员' },
 ];
 
 /**

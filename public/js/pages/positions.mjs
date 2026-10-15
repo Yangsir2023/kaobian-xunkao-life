@@ -196,6 +196,7 @@ function filterHtml() {
       </button>
       <button class="chip" data-guide="1">${icon('signpost', { size: 13, className: 'icon icon-sm' })}捡漏攻略</button>
       <button class="chip chip-hukou" data-hukou="1">${icon('globe', { size: 13, className: 'icon icon-sm' })}外地可考</button>
+      <button class="chip chip-cold" data-cold="1">${icon('briefcase', { size: 13, className: 'icon icon-sm' })}冷门统考</button>
       <button class="chip ${state.majorTrack === PRESET.majorTrack && state.ratioType === PRESET.ratioType && state.freshOnly === PRESET.freshOnly && state.bands.includes('lt120') ? 'is-active' : ''}" data-preset="1">
         ${icon('spark', { size: 13, className: 'icon icon-sm' })}低分上岸组合
       </button>
@@ -634,6 +635,10 @@ function bind(root) {
 
   root.querySelectorAll('[data-hukou]').forEach((btn) => {
     btn.addEventListener('click', () => openHukouSheet());
+  });
+
+  root.querySelectorAll('[data-cold]').forEach((btn) => {
+    btn.addEventListener('click', () => openColdExamSheet());
   });
 
   root.querySelectorAll('[data-province]').forEach((btn) => {
@@ -1815,6 +1820,96 @@ function openHukouSheet() {
           <li>社区工作者的口子在「应届」二字上：<b>往届外地考生基本报不了</b>，需要本地户籍或居住证满年限且积分达标。</li>
           <li>三支一扶、社区工作者、村官这类各省 / 各区自己定的考试，<b>别把一个地方的结论外推到全国</b>——本清单标明的是具体哪一份公告的口径。</li>
           <li>没出现在这份清单里的考试（军队文职、选调生、人才引进等）不代表限户籍，只是本次没核到明确条款原文，报名前请以当年公告为准。</li>
+        </ul>
+      </div>
+    `,
+  });
+}
+
+/* ───────────────── 冷门统考弹层 ───────────────── */
+
+/** 冷门统考条目卡：组织方 + 户籍口径 → 规模 / 窗口 → 依据原文 → 为什么值得看 / 注意 → 来源 */
+function coldExamItemCard(it) {
+  return `<div class="best-pick">
+    <div class="region-name">${escapeHtml(it.name)}${hukouLevelBadge(it.hukou)}</div>
+    ${it.org ? `<div class="region-line"><b>组织方</b>：${escapeHtml(it.org)}</div>` : ''}
+    ${it.scale ? `<div class="region-line"><b>规模</b>：${escapeHtml(it.scale)}</div>` : ''}
+    ${it.window ? `<div class="region-line"><b>窗口</b>：${escapeHtml(it.window)}</div>` : ''}
+    ${it.quote ? `<div class="note-box mt-6">${escapeHtml(it.quote)}</div>` : ''}
+    ${it.why ? `<div class="region-line"><b>为什么值得看</b>：${escapeHtml(it.why)}</div>` : ''}
+    ${it.caution ? `<div class="region-line is-risk"><b>注意</b>：${escapeHtml(it.caution)}</div>` : ''}
+    ${bestSource(it)}
+    ${
+      (it.stats || []).length
+        ? `<div class="ann-stats mt-6">
+            ${it.stats
+              .map(
+                (s) => `<div class="ann-stat">
+                  ${archiveLevelBadge(s.level)}<span class="grow">${escapeHtml(s.text)}</span>
+                  ${bestSource(s)}
+                </div>`
+              )
+              .join('')}
+          </div>`
+        : ''
+    }
+  </div>`;
+}
+
+function openColdExamSheet() {
+  const cold = state.catalogs?.coldExams;
+  if (!cold?.groups?.length) {
+    toast('冷门统考数据加载中，请稍后重试');
+    return;
+  }
+  const items = cold.groups.flatMap((g) => g.items || []);
+  const openCount = items.filter((i) => i.hukou === 'open').length;
+
+  openSheet({
+    title: '冷门统考',
+    subtitle: `${items.length} 类不太有人查的统考 · ${openCount} 类明确不限户籍 · 更新于 ${escapeHtml(cold.updatedAt || '')}`,
+    content: `
+      <div class="notice notice-info">${icon('briefcase', { size: 16 })}<div class="grow">${escapeHtml(cold.intro)}</div></div>
+      <div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow">${escapeHtml(cold.caveat)}</div></div>
+
+      <div class="best-legend mt-10">
+        ${(cold.levels || [])
+          .map(
+            (l) => `<span class="best-legend-item"><span class="badge" style="background:${l.accent};color:${l.color}">${escapeHtml(l.short)}</span>
+              <span class="tiny muted">${escapeHtml(l.desc)}</span></span>`
+          )
+          .join('')}
+      </div>
+
+      ${cold.groups
+        .map(
+          (g) => `<div class="filter-group mt-14">
+            <div class="filter-group-title">${escapeHtml(g.name)}</div>
+            ${(g.items || []).map(coldExamItemCard).join('')}
+          </div>`
+        )
+        .join('')}
+
+      <div class="filter-group">
+        <div class="filter-group-title">待核实（听说过，但没核到当年度公告原文，故不列入正式清单）</div>
+        ${
+          (cold.pending || [])
+            .map(
+              (p) => `<div class="notice notice-warn mt-6">${icon('alert', { size: 16 })}<div class="grow">
+                <b>${escapeHtml(p.name)}</b><br />${escapeHtml(p.note)}
+              </div></div>`
+            )
+            .join('')
+        }
+      </div>
+
+      <div class="filter-group">
+        <div class="filter-group-title">为什么这些更容易捡到漏</div>
+        <ul class="policy-list">
+          <li>信息差本身就是门槛：这些考试没有统一入口，公告躺在各系统 / 各省公司官网，绝大多数人根本不知道。</li>
+          <li>专业门槛把人筛掉一层：专利审查员要「扎实的理工科专业功底」，计算机 / AI 背景是正相关而不是陪跑。</li>
+          <li>地域偏见再筛一层：很多岗位在地市 / 县，愿意去的人少，报名人数自然上不去。</li>
+          <li>反过来要认清楚：**央企 / 国企校招多半是合同制或劳务派遣，不是行政 / 事业编制**——别把「正式员工」和「编制」混为一谈。</li>
         </ul>
       </div>
     `,

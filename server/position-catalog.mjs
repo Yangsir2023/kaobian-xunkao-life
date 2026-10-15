@@ -12,6 +12,7 @@
 import { BEST_RECOMMEND } from './best-recommend.mjs';
 import { ANNOUNCEMENT_ARCHIVE, ANNOUNCEMENT_LEVELS } from './announcement-archive.mjs';
 import { HUKOU_GUIDE, HUKOU_LEVELS } from './hukou-guide.mjs';
+import { COLD_EXAMS, COLD_EXAM_LEVELS } from './cold-exams.mjs';
 
 /** 31 个省级行政区 + 中央机关（国考职位归属） */
 export const PROVINCES = [
@@ -86,6 +87,12 @@ export const EXAM_TYPES = [
   { key: 'shequ', name: '社区工作者', short: '社区工作者', color: '#7A4FD1', accent: '#F1ECFC' },
   { key: 'cunban', name: '大学生村官 / 村级后备干部', short: '村官', color: '#4B7B3A', accent: '#EDF4E9' },
   { key: 'xibu', name: '大学生志愿服务西部计划', short: '西部计划', color: '#0B7285', accent: '#E3F1F4' },
+  { key: 'zhuanli', name: '专利审查员全国统考', short: '专利审查', color: '#0B6E99', accent: '#E2F0F8' },
+  { key: 'yancao', name: '中国烟草系统招聘', short: '烟草系统', color: '#8A6D3B', accent: '#F5EFE3' },
+  { key: 'dianwang', name: '电网系统统一考试', short: '电网系统', color: '#C2410C', accent: '#FFF0E6' },
+  { key: 'nongxin', name: '农商行 / 农信社统考', short: '农信系统', color: '#4B7B3A', accent: '#EDF4E9' },
+  { key: 'yunyingshang', name: '三大运营商 / 中国铁塔统考', short: '运营商', color: '#1F5AE0', accent: '#EAF0FF' },
+  { key: 'xiaofang', name: '国家综合性消防救援队伍招录', short: '消防救援', color: '#C0392B', accent: '#FBEDEB' },
 ];
 
 export const EXAM_TYPE_MAP = new Map(EXAM_TYPES.map((t) => [t.key, t]));
@@ -868,6 +875,8 @@ export function publicCatalogs() {
     announcementLevels: ANNOUNCEMENT_LEVELS,
     hukouGuide: HUKOU_GUIDE,
     hukouLevels: HUKOU_LEVELS,
+    coldExams: COLD_EXAMS,
+    coldExamLevels: COLD_EXAM_LEVELS,
     sorts: SORTS,
   };
 }
