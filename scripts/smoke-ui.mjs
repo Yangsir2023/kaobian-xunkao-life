@@ -664,6 +664,8 @@ async function main() {
         hasUnverified: t.includes('未核实'),
         hasOfficialSite: t.includes('官方入口'),
         hasNotes: t.includes('注意事项'),
+        hasExamInfo: t.includes('考什么 · 备什么'),
+        hasPrep: t.includes('留服认证') && t.includes('以当年公告原文为准'),
         docOverflow: document.documentElement.scrollWidth - window.innerWidth,
       };
     })()`);
@@ -678,6 +680,9 @@ async function main() {
     check('来源外链渲染', detail.sources >= 6, `${detail.sources} 条`);
     check('岗位深链横幅渲染', detail.posBanner === true && /岗位库 · \d+ 个公共岗位/.test(detail.posText), detail.posText);
     check('官方入口与注意事项渲染', detail.hasOfficialSite && detail.hasNotes);
+    check('考什么 · 备什么板块渲染（含留服认证准备项）',
+      detail.hasExamInfo === true && detail.hasPrep === true,
+      `examInfo=${detail.hasExamInfo} prep=${detail.hasPrep}`);
     check('480px 下详情页无横向溢出', detail.docOverflow <= 1, `+${detail.docOverflow}`);
 
     await cdp.eval(`document.querySelector('[data-cd-positions]')?.click()`);
@@ -689,6 +694,39 @@ async function main() {
     check('深链跳到岗位库并带 examType=rencai', deepLink.hash.includes('examType=rencai'), deepLink.hash);
     check('岗位库按人才引进过滤（列表出现该考试类型）', /人才引进/.test(deepLink.listText), deepLink.listText.slice(0, 60));
 
+    // 公考雷达式跳转：每条岗位卡都带「公告 / 来源」或该类考试官方入口
+    const posLinks = await cdp.eval(`(() => ({
+      cards: document.querySelectorAll('.pos-card').length,
+      linkRows: document.querySelectorAll('.pos-card .pos-links').length,
+      linkTexts: [...document.querySelectorAll('.pos-card .pos-links a')].slice(0, 4).map((a) => a.textContent.trim()),
+      hrefs: [...document.querySelectorAll('.pos-card .pos-links a')].slice(0, 4).map((a) => a.href),
+    }))()`);
+    check('岗位卡带跳转链接行（公告原文或官方入口）',
+      posLinks.cards > 0 && posLinks.linkRows > 0,
+      `${posLinks.linkRows}/${posLinks.cards} 张卡 · ${posLinks.linkTexts.join(' | ').slice(0, 60)}`);
+    check('跳转链接都是真实 http(s) 地址',
+      posLinks.hrefs.length > 0 && posLinks.hrefs.every((h) => h.startsWith('http')));
+
+    // 岗位详情弹层：考什么 · 备什么板块 + 无来源时退到官方入口按钮
+    await cdp.eval(`document.querySelector('.pos-card')?.click()`);
+    await sleep(1200);
+    const posDetail = await cdp.eval(`(() => {
+      const sheet = document.querySelector('.sheet-backdrop');
+      const t = sheet?.innerText || '';
+      return {
+        open: !!sheet,
+        hasExamInfo: t.includes('考什么'),
+        hasPrepList: t.includes('面试') || t.includes('留服认证'),
+        hasOfficialBtn: !!sheet?.querySelector('a.btn'),
+        officialBtnText: sheet?.querySelector('a.btn')?.textContent.trim() || '',
+      };
+    })()`);
+    check('岗位详情弹层打开', posDetail.open === true);
+    check('岗位详情弹层有「这类考试考什么」板块', posDetail.hasExamInfo === true && posDetail.hasPrepList === true);
+    check('详情弹层跳转按钮可用（公告原文或官方入口）', posDetail.hasOfficialBtn === true, posDetail.officialBtnText.slice(0, 40));
+    await cdp.eval(`document.querySelector('.sheet-backdrop')?.click()`);
+    await sleep(500);
+
     await cdp.send('Page.navigate', { url: `${BASE}/#/category/xiaofang?u=${Date.now()}` });
     await sleep(1400);
     const cold = await cdp.eval(`(() => {
@@ -698,12 +736,14 @@ async function main() {
         hasOpen: t.includes('全国可报'),
         has17000: t.includes('17000'),
         hasMale: t.includes('仅招男性'),
+        hasExamInfo: t.includes('考什么 · 备什么') && t.includes('体能测试'),
         docOverflow: document.documentElement.scrollWidth - window.innerWidth,
       };
     })()`);
     check('消防救援详情页渲染', cold.hero.includes('消防救援'), cold.hero);
     check('户籍口径为全国可报', cold.hasOpen === true);
     check('今年动态含招录规模与限制', cold.has17000 && cold.hasMale);
+    check('考什么板块含体能测试（消防救援不考行测申论）', cold.hasExamInfo === true);
     check('480px 下无横向溢出', cold.docOverflow <= 1, `+${cold.docOverflow}`);
 
     await cdp.send('Emulation.setDeviceMetricsOverride', {
@@ -734,6 +774,16 @@ async function main() {
       const r = await cdp.eval(RAIL_STATE);
       check(`${hash} 已增强（${r.length} 条，溢出 ${r.filter((x) => x.overflow).length} 条）`, r.length >= 1);
     }
+
+    // 分类卡片的「考什么」一行概要
+    await cdp.send('Page.navigate', { url: `${BASE}/#/categories?u=${Date.now()}` });
+    await sleep(1600);
+    const catExam = await cdp.eval(`(() => ({
+      cards: document.querySelectorAll('.cat-card').length,
+      examLines: document.querySelectorAll('.cat-card .cat-exam').length,
+      sample: document.querySelector('.cat-card .cat-exam')?.textContent.trim() || '',
+    }))()`);
+    check('分类卡带考什么一行概要', catExam.cards >= 16 && catExam.examLines >= 15, `${catExam.examLines}/${catExam.cards} 张 · 示例「${catExam.sample.slice(0, 30)}」`);
   } finally {
     try {
       await cdp?.send('Page.close');

@@ -86,6 +86,8 @@ function scopeNoticeHtml() {
 }
 
 function catCardHtml(cat) {
+  // 考什么：科目名串成一行概要（考什么 · 备什么的详情在类别详情页）
+  const subjects = (cat.examInfo?.subjects || []).map((s) => s.name).join(' + ');
   return `<button class="cat-card" data-cat="${cat.key}">
     <div class="row">
       <div class="cat-icon" style="background:${cat.accent};color:${cat.color}">
@@ -96,6 +98,7 @@ function catCardHtml(cat) {
     <div>
       <div class="cat-name">${escapeHtml(cat.short)}</div>
       <div class="cat-full">${escapeHtml(cat.name)}</div>
+      ${subjects ? `<div class="cat-exam tiny">${escapeHtml(subjects.length > 42 ? `${subjects.slice(0, 41)}…` : subjects)}</div>` : ''}
     </div>
     <div class="cat-counts">
       <span>我的 <b>${cat.myCount}</b></span>

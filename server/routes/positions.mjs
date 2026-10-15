@@ -17,6 +17,21 @@ import { db } from '../store/index.mjs';
 import { CODES, fail, ok } from '../lib/errors.mjs';
 import * as V from '../lib/validate.mjs';
 import { newId, nowIso } from '../lib/ids.mjs';
+import { getCategory } from '../catalog.mjs';
+
+/**
+ * 岗位 examType → 分类 key：给每行岗位带上「该类考试官方公告入口」，
+ * 让任何一条岗位都能跳出去（有 sourceUrl 跳公告原文，没有也有官网兜底）。
+ * 大多数 key 一致；选调生的岗位 key 是 xuandiao、分类 key 是 hubei-xuandiao；
+ * 运营商暂无对应分类（分类页未收录），不注入官网兜底。
+ */
+const EXAM_TYPE_TO_CATEGORY = new Map([
+  ['xuandiao', 'hubei-xuandiao'],
+]);
+function categoryForExamType(examType) {
+  return getCategory(examType) || getCategory(EXAM_TYPE_TO_CATEGORY.get(examType) || '');
+}
+
 import {
   PROVINCES,
   MAJOR_TRACK_KEYS,
@@ -182,6 +197,9 @@ export function shapePosition(doc, { viewer = null } = {}) {
     examTypeName: exam?.short || doc.examType,
     examTypeColor: exam?.color || '#4B5563',
     examTypeAccent: exam?.accent || '#EEF0F3',
+    // 该类考试官方公告入口（公考雷达式跳转的兜底）：有 sourceUrl 跳原文，没有跳官网
+    officialSite: categoryForExamType(doc.examType)?.officialSite || null,
+    officialName: categoryForExamType(doc.examType)?.officialName || null,
     year: doc.year || null,
     unit: doc.unit,
     title: doc.title,

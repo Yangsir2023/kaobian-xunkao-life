@@ -17,7 +17,7 @@
  * 没核到原文的类别（如省考户籍、选调生户籍、人才引进户籍）显式写「未核实」，
  * 不猜、不用「往年同期」补齐——与 hukou-guide.mjs 同一条纪律。
  */
-import { getCategory } from './catalog.mjs';
+import { getCategory, getExamInfo } from './catalog.mjs';
 import { ANNOUNCEMENT_ARCHIVE } from './announcement-archive.mjs';
 import { HUKOU_GUIDE, HUKOU_LEVEL_MAP } from './hukou-guide.mjs';
 import { COLD_EXAMS } from './cold-exams.mjs';
@@ -583,6 +583,8 @@ export function categoryDetail(key, positionCount = 0) {
     },
     updatedAt: CATEGORY_DETAIL_UPDATED_AT,
     summary: cfg.summary || null,
+    // 考什么 · 备什么：通用备考口径（常识级整理，前端标注「以当年公告原文为准」）
+    examInfo: getExamInfo(key),
     thisYear: cfg.thisYear || null,
     forecast: cfg.forecast || null,
     hukou: shapeHukou(hukouItem) || coldHukou,

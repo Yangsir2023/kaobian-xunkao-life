@@ -28,6 +28,11 @@ export function categoryDetailSuite({ admin }) {
       assert(d.category, `${key} 应有 category`);
       assertEqual(d.category.key, key, `${key} key 一致`);
       assert(d.summary && d.summary.headline, `${key} 应有今年状态一句话`);
+      // 考什么 · 备什么：每类都有通用备考口径（科目 + 准备清单）
+      assert(d.examInfo, `${key} 应有 examInfo`);
+      assert(d.examInfo.subjects.length >= 1, `${key} 应有考试科目`);
+      assert(d.examInfo.subjects.every((x) => x.name), `${key} 科目都应有名称`);
+      assert(d.examInfo.prep.length >= 2, `${key} 应有准备清单（≥2 条）`);
       if (key === 'liufu') {
         assertEqual(d.positions.examTypes.length, 0, '留服认证不是考试，不映射岗位类型');
         assertEqual(d.positions.deepLink, null, '留服认证无岗位深链');
@@ -116,6 +121,34 @@ export function categoryDetailSuite({ admin }) {
   s.test('未知分类 key 走 404', async () => {
     const res = await admin.get('/api/categories/not-exist/detail', { token: null });
     assertEqual(res.status, 404, 'HTTP 状态');
+  });
+
+  s.test('考什么 · 备什么：目录与岗位行都带备考口径与官方入口', async () => {
+    // 分类目录：16 类都带 examInfo（分类卡片与岗位详情弹层共用这份数据）
+    const catRes = await admin.get('/api/catalog/categories', { token: null });
+    const cats = catRes.body.data.categories;
+    assertEqual(cats.length, 16, '分类数');
+    for (const c of cats) {
+      assert(c.examInfo, `${c.key} 目录应带 examInfo`);
+      assert(c.examInfo.subjects.length >= 1, `${c.key} 目录科目 ≥1`);
+      assert(c.examInfo.prep.length >= 2, `${c.key} 目录准备清单 ≥2`);
+      assert(c.officialSite && c.officialSite.startsWith('http'), `${c.key} 官方入口`);
+    }
+    // 岗位行：每行带该类考试官方入口（公考雷达式跳转的兜底）
+    const posRes = await admin.get('/api/positions?limit=200', { token: null });
+    const rows = posRes.body.data.positions;
+    assert(rows.length > 0, '应有岗位行');
+    for (const p of rows) {
+      // 运营商暂无对应分类，不注入官网兜底；其余 examType 都该有
+      if (p.examType !== 'yunyingshang') {
+        assert(p.officialSite && p.officialSite.startsWith('http'), `${p.examType} 行应有官方入口`);
+      }
+    }
+    // 选调生 examType=xuandiao → 分类 key=hubei-xuandiao 的官网
+    const xuandiao = rows.find((p) => p.examType === 'xuandiao');
+    if (xuandiao) {
+      assertIncludes(xuandiao.officialSite, 'hbzzb.gov.cn', '选调岗位应落到省委组织部官网');
+    }
   });
 
   s.test('诚实边界：forecast 块一律标 forecast，带结论块必须带来源', async () => {

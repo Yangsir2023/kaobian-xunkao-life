@@ -82,6 +82,7 @@ function shellHtml(d) {
   return `
     ${heroHtml(cat)}
     ${summaryHtml(d.summary)}
+    ${examInfoHtml(d.examInfo)}
     ${thisYearHtml(d.thisYear)}
     ${forecastHtml(d.forecast)}
     ${d.hukou ? hukouHtml(d.hukou) : hukouPendingHtml(d.hukouPending)}
@@ -133,6 +134,32 @@ function summaryHtml(summary) {
   return `<div class="cd-summary mt-10">
     ${levelBadge(summary.level)}
     <p>${escapeHtml(summary.headline)}</p>
+  </div>`;
+}
+
+/** 考什么 · 备什么：通用备考口径（常识级整理，界面标注以当年公告原文为准） */
+function examInfoHtml(info) {
+  if (!info) return '';
+  const subjects = (info.subjects || [])
+    .map(
+      (s) => `<div class="cd-point">
+    <div class="cd-point-label">${escapeHtml(s.name)}</div>
+    <div class="cd-point-value">${escapeHtml(s.note || '')}</div>
+  </div>`
+    )
+    .join('');
+  const prep = (info.prep || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('');
+  return `<div class="card mt-10">
+    <div class="card-pad">
+      <div class="section-head" style="margin-bottom:6px">
+        <h3 class="section-title">考什么 · 备什么</h3>
+        <span class="badge" style="background:var(--surface-3);color:var(--text-2)">备考常识</span>
+      </div>
+      ${subjects ? `<div class="cd-points">${subjects}</div>` : ''}
+      ${info.interview ? `<p class="cd-text mt-10"><b>面试</b>：${escapeHtml(info.interview)}</p>` : ''}
+      ${prep ? `<ul class="policy-list mt-10">${prep}</ul>` : ''}
+      <p class="tiny muted mt-6">以上为通用备考口径整理，具体科目、条件与流程以当年公告原文为准。</p>
+    </div>
   </div>`;
 }
 

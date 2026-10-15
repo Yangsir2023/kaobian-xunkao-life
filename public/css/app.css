@@ -1037,3 +1037,27 @@ input, textarea, select { font-family: inherit; font-size: 15px; }
 .cd-note { display: flex; gap: 8px; font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
 .cd-note .icon { flex: none; margin-top: 3px; color: var(--warn); }
 .cd-note + .cd-note { margin-top: 10px; }
+
+/* ───────── 考什么 · 备什么 + 岗位跳转行 ───────── */
+
+.pos-links {
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px dashed var(--border);
+}
+.pos-links .link-out { display: inline-flex; align-items: center; gap: 3px; }
+
+.cat-exam { margin-top: 4px; color: var(--text-3); line-height: 1.5; }
+
+.exam-info {
+  padding: 12px; background: var(--surface-2); border-radius: var(--radius);
+}
+.ei-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
+.ei-subject { padding: 6px 0; border-bottom: 1px dashed var(--border); line-height: 1.6; }
+.ei-subject:last-of-type { border-bottom: 0; }
+.ei-subject b { display: block; font-size: 12.5px; color: var(--text-1); }
+.ei-subject .tiny { display: block; margin-top: 1px; }
+.ei-interview { margin-top: 8px; color: var(--text-2); line-height: 1.7; }
+.ei-prep { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--text-2); line-height: 1.8; }
+.ei-prep li + li { margin-top: 2px; }
+.exam-info .tiny.muted { margin-top: 8px; }

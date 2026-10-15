@@ -23,6 +23,7 @@ import { emptyState, openSheet, toast, toastOk, confirmDialog } from '../ui.mjs'
 
 const state = {
   catalogs: null,
+  categories: [],
   rows: [],
   stats: null,
   provinces: [],
@@ -69,6 +70,15 @@ export default {
   async render(ctx) {
     if (!state.catalogs) {
       state.catalogs = await api.positionCatalogs();
+    }
+    if (!state.categories.length) {
+      // 考什么 · 备什么：从分类目录拿（与分类页同一份数据），失败不阻塞岗位列表
+      try {
+        const catalog = await api.categories();
+        state.categories = catalog.categories || [];
+      } catch {
+        state.categories = [];
+      }
     }
     // 深链支持：分类详情页跳 /positions?examType=rencai 时按查询串初始化筛选；
     // 无查询串（点标签页进入）则重置，保证「点岗位 tab 看到全部」的直觉
@@ -401,6 +411,7 @@ function cardHtml(row) {
     }
     ${markRowHtml(near)}
     ${row.notes ? `<div class="pos-notes">${escapeHtml(row.notes)}</div>` : ''}
+    ${posLinksHtml(row)}
   </article>`;
 }
 
@@ -422,6 +433,66 @@ function trackColor(row) {
   const cat = state.catalogs;
   const track = cat.majorTracks.find((t) => t.key === row.majorTrack);
   return track?.color || '#4B5563';
+}
+
+/* ───────────────── 考什么 · 备什么 + 跳转链接 ───────────────── */
+
+/** 岗位 examType → 分类 key：与后端 EXAM_TYPE_TO_CATEGORY 同一套映射 */
+function categoryOfExamType(examType) {
+  const key = examType === 'xuandiao' ? 'hubei-xuandiao' : examType;
+  return state.categories.find((c) => c.key === key) || null;
+}
+
+function examInfoOf(row) {
+  return categoryOfExamType(row.examType)?.examInfo || null;
+}
+
+/**
+ * 岗位卡的跳转行（公考雷达式：每条岗位都能点出去）：
+ * 有公告 / 来源链接跳原文；没有则退到该类考试官方入口。
+ * 示例行不伪造链接 —— 官网入口是真实存在的官网，不是编出来的岗位页。
+ */
+function posLinksHtml(row) {
+  const links = [];
+  if (row.sourceUrl) links.push({ label: '公告 / 来源原文', url: row.sourceUrl });
+  if (row.officialSite && row.officialSite !== row.sourceUrl) {
+    links.push({ label: `${row.examTypeName}官方入口`, url: row.officialSite });
+  }
+  if (!links.length) return '';
+  return `<div class="pos-links">${links
+    .map(
+      (l) => `<a class="link-out tiny" href="${escapeHtml(l.url)}" target="_blank" rel="noopener">
+        ${icon('external', { size: 12, className: 'icon icon-sm' })}${escapeHtml(l.label)}
+      </a>`
+    )
+    .join('')}</div>`;
+}
+
+/** 岗位详情弹层的「这类考试考什么 · 备什么」板块（通用备考口径，注明以公告为准） */
+function examInfoHtml(row) {
+  const info = examInfoOf(row);
+  const cat = categoryOfExamType(row.examType);
+  if (!info || !cat) return '';
+  const subjects = (info.subjects || [])
+    .map(
+      (s) => `<div class="ei-subject">
+        <b>${escapeHtml(s.name)}</b>${s.note ? `<span class="tiny muted">${escapeHtml(s.note)}</span>` : ''}
+      </div>`
+    )
+    .join('');
+  const prep = (info.prep || []).map((p) => `<li>${escapeHtml(p)}</li>`).join('');
+  return `<div class="exam-info mt-14">
+    <div class="ei-head">
+      <span class="badge" style="background:${row.examTypeAccent};color:${row.examTypeColor}">${escapeHtml(row.examTypeName)} · 考什么</span>
+      <a class="link-out tiny" href="${escapeHtml(cat.officialSite || '#')}" target="_blank" rel="noopener">
+        ${icon('external', { size: 12, className: 'icon icon-sm' })}官方入口
+      </a>
+    </div>
+    ${subjects}
+    ${info.interview ? `<div class="ei-interview tiny"><b>面试</b>：${escapeHtml(info.interview)}</div>` : ''}
+    ${prep ? `<ul class="ei-prep">${prep}</ul>` : ''}
+    <div class="tiny muted">以上为通用备考口径整理，具体科目、条件与流程以当年公告原文为准。</div>
+  </div>`;
 }
 
 /** 报名数据块：招录 + 竞争比 + 各环节人数，直接反映上岸难度 */
@@ -942,6 +1013,8 @@ async function openDetailSheet(id) {
 
       ${row.notes ? `<div class="note-box mt-10">${escapeHtml(row.notes)}</div>` : ''}
 
+      ${examInfoHtml(row)}
+
       ${
         row.dataLevel === 'sample'
           ? `<div class="notice notice-warn mt-10">${icon('alert', { size: 16 })}<div class="grow">这一行是<b>示例数据</b>，单位与分数均为演示构造值，请以官方职位表为准。</div></div>`
@@ -955,7 +1028,11 @@ async function openDetailSheet(id) {
           ? `<a class="btn btn-ghost btn-block mt-10" href="${escapeHtml(row.sourceUrl)}" target="_blank" rel="noopener">
               ${icon('external', { size: 16 })}打开来源公告
             </a>`
-          : ''
+          : row.officialSite
+            ? `<a class="btn btn-ghost btn-block mt-10" href="${escapeHtml(row.officialSite)}" target="_blank" rel="noopener">
+                ${icon('external', { size: 16 })}打开${escapeHtml(row.examTypeName)}官方入口
+              </a>`
+            : ''
       }
 
       ${
