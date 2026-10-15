@@ -845,6 +845,62 @@ async function main() {
     }))()`);
     check('点击上海 chip 后上海分组可见', cjFilter.shanghaiVisible === true);
     check('点击上海 chip 后北京分组隐藏', cjFilter.beijingHidden === true);
+
+    // [7g] 三大新板：乡村振兴协理员（cunban）/ 网格员（shequ）/ 武汉双盲（shiye）
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/cunban?u=${Date.now()}` });
+    await sleep(1400);
+    const cunban = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hasRj: t.includes('乡村振兴协理员'),
+        hasHenan: t.includes('河南'),
+        hasNoHukou: t.includes('不限户籍'),
+        hasGroup: !!document.querySelector('[data-rj-province]'),
+        hasCaveat: t.includes('覆盖度声明'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('村官详情页含乡村振兴协理员板块', cunban.hasRj === true);
+    check('协理员板块含河南（带编不限户籍）', cunban.hasHenan && cunban.hasNoHukou === true);
+    check('协理员板块有省份分组', cunban.hasGroup === true);
+    check('协理员板块有覆盖度声明', cunban.hasCaveat === true);
+    check('480px 下村官详情页无横向溢出', cunban.docOverflow <= 1, `+${cunban.docOverflow}`);
+
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/shequ?u=${Date.now()}` });
+    await sleep(1400);
+    const grid = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hasGj: t.includes('网格员'),
+        hasGroup: !!document.querySelector('[data-gj-province]'),
+        hasTemp: t.includes('临聘') || t.includes('编外'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('社区工作者详情页含网格员板块', grid.hasGj === true);
+    check('网格员板块有省份分组', grid.hasGroup === true);
+    check('网格员板块说明临聘/编外无编', grid.hasTemp === true);
+    check('480px 下网格员板块无横向溢出', grid.docOverflow <= 1, `+${grid.docOverflow}`);
+
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/shiye?u=${Date.now()}` });
+    await sleep(1400);
+    const wuhan = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hasWj: t.includes('双盲'),
+        hasMechanism: t.includes('抽签'),
+        hasGroup: !!document.querySelector('[data-wj-province]'),
+        hasTag: !!document.querySelector('.cj-tag-blind'),
+        hasWuhan: t.includes('武汉'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('事业单位详情页含武汉双盲板块', wuhan.hasWj === true);
+    check('双盲板块说明抽签机制', wuhan.hasMechanism === true);
+    check('双盲板块有武汉分组', wuhan.hasGroup === true);
+    check('双盲面试有标签渲染', wuhan.hasTag === true);
+    check('双盲板块含武汉两场', wuhan.hasWuhan === true);
+    check('480px 下双盲板块无横向溢出', wuhan.docOverflow <= 1, `+${wuhan.docOverflow}`);
   } finally {
     try {
       await cdp?.send('Page.close');

@@ -207,6 +207,104 @@ export function categoryDetailSuite({ admin }) {
     assert(d.provinces.some((p) => p.name === '湖北' && p.items.some((i) => i.area.includes('武汉'))), '应含武汉/湖北条目');
   });
 
+  s.test('乡村振兴协理员：cunban 详情含 ruralJobs，结构正确、河南不限户籍', async () => {
+    const res = await admin.get('/api/categories/cunban/detail', { token: null });
+    const d = res.body.data;
+    assert(d.ruralJobs, '村官（cunban）详情应含乡村振兴协理员块 ruralJobs');
+    const rj = d.ruralJobs;
+    assert(rj.intro && rj.intro.includes('乡村振兴协理员'), '应有简介');
+    assert(rj.caveat && rj.caveat.includes('覆盖度声明'), '应有覆盖度声明');
+    assert(rj.summary.headcount > 0, '总人数 > 0');
+    assert(rj.summary.provincesWithData >= 1, '有数据的省份 > 0');
+    assert(Array.isArray(rj.provinces), '应有省份数组');
+    // 河南：省级事业编专项、不限户籍、来源齐全
+    const henan = rj.provinces.find((p) => p.key === 'henan');
+    assert(henan, '应含河南');
+    const henItem = henan.items[0];
+    assertEqual(henItem.level, 'official', '河南应为 official');
+    assert(henItem.sourceUrl && henItem.sourceUrl.startsWith('http'), '河南应带来源链接');
+    assertIncludes(henItem.hukou, '不限户籍', '河南应明确不限户籍');
+    // 诚实边界：级别在白名单内；有来源链接的必须是 http(s)
+    for (const p of rj.provinces) {
+      for (const it of p.items) {
+        assert(['official', 'thirdparty'].includes(it.level), `${p.name}·${it.area} 级别应在白名单内`);
+        if (it.sourceUrl) assert(it.sourceUrl.startsWith('http'), `${p.name}·${it.area} 来源应为 http(s)`);
+      }
+    }
+  });
+
+  s.test('乡村振兴协理员全国清单独立接口：结构正确、可单独调用', async () => {
+    const res = await admin.get('/api/rural-coordinator-jobs', { token: null });
+    assertEqual(res.status, 200, 'HTTP 状态');
+    const d = res.body.data;
+    assert(d.summary.headcount > 0, '人数 > 0');
+    assert(Array.isArray(d.provinces), '省份数组');
+    const henan = d.provinces.find((p) => p.key === 'henan');
+    assert(henan && henan.items[0].level === 'official', '应含河南 official 条目');
+  });
+
+  s.test('网格员：shequ 详情含 gridJobs，结构正确、户籍/编制口径逐条标', async () => {
+    const res = await admin.get('/api/categories/shequ/detail', { token: null });
+    const d = res.body.data;
+    assert(d.gridJobs, '社区工作者（shequ）详情应含网格员块 gridJobs');
+    const gj = d.gridJobs;
+    assert(gj.intro && gj.intro.includes('网格员'), '应有简介');
+    assert(gj.caveat && gj.caveat.includes('覆盖度声明'), '应有覆盖度声明');
+    assert(gj.summary.headcount > 0, '总人数 > 0');
+    assert(gj.summary.provinceCount >= 4, '覆盖省份数 ≥ 4');
+    assert(Array.isArray(gj.provinces), '应有省份数组');
+    for (const p of gj.provinces) {
+      for (const it of p.items) {
+        assert(it.sourceUrl && it.sourceUrl.startsWith('http'), `${p.name}·${it.area} 应带来源链接`);
+        assert(['official', 'thirdparty'].includes(it.level), `${p.name}·${it.area} 级别应在白名单内`);
+        assert(it.hukou, `${p.name}·${it.area} 应标户籍口径`);
+        assert(it.abroad, `${p.name}·${it.area} 应标国境外学历口径`);
+        // 编制属性：逐条说明无事业编制（措辞可能是「临聘」/「编外」/「非事业编制」之一）
+        const noEstab = ['临聘', '编外', '非事业编制', '无事业编制'].some((k) => it.note.includes(k));
+        assert(noEstab, `${p.name}·${it.area} 应说明临聘/编外无编`);
+      }
+    }
+  });
+
+  s.test('网格员全国清单独立接口：结构正确、可单独调用', async () => {
+    const res = await admin.get('/api/grid-worker-jobs', { token: null });
+    assertEqual(res.status, 200, 'HTTP 状态');
+    const d = res.body.data;
+    assert(d.summary.headcount > 0, '人数 > 0');
+    assert(Array.isArray(d.provinces), '省份数组');
+    assert(d.provinces.length >= 4, '应覆盖 ≥4 省/地区');
+  });
+
+  s.test('武汉双盲考试：shiye 详情含 wuhanDoubleBlind，机制说明 + 两场 + 双盲标', async () => {
+    const res = await admin.get('/api/categories/shiye/detail', { token: null });
+    const d = res.body.data;
+    assert(d.wuhanDoubleBlind, '事业单位（shiye）详情应含武汉双盲块');
+    const wj = d.wuhanDoubleBlind;
+    assert(wj.intro && wj.intro.includes('双盲'), '应有简介');
+    assert(wj.doubleBlind && wj.doubleBlind.text.includes('双盲'), '应有双盲机制说明');
+    assert(wj.doubleBlind.sourceUrl && wj.doubleBlind.sourceUrl.startsWith('http'), '双盲机制说明应带来源（诺码信战报）');
+    assert(wj.summary.headcount > 0, '总人数 > 0');
+    assert(Array.isArray(wj.provinces), '应有省份数组');
+    const wuhan = wj.provinces.find((p) => p.key === 'wuhan');
+    assert(wuhan, '应含武汉');
+    assertEqual(wuhan.items.length, 2, '武汉应含两场事业编招聘');
+    for (const it of wuhan.items) {
+      assertEqual(it.doubleBlind, true, `${it.area} 应标双盲面试`);
+      assert(it.sourceUrl && it.sourceUrl.startsWith('http'), `${it.area} 应带官方来源`);
+      assertEqual(it.level, 'official', `${it.area} 应为 official`);
+      assertIncludes(it.hukou, '国籍', `${it.area} 户籍口径应只列国籍`);
+    }
+  });
+
+  s.test('武汉双盲考试专项独立接口：结构正确、可单独调用', async () => {
+    const res = await admin.get('/api/wuhan-double-blind', { token: null });
+    assertEqual(res.status, 200, 'HTTP 状态');
+    const d = res.body.data;
+    assert(d.doubleBlind && d.doubleBlind.text, '应有双盲机制说明');
+    assert(d.summary.headcount > 0, '人数 > 0');
+    assert(d.provinces[0].items.every((i) => i.doubleBlind === true), '武汉两场都标双盲');
+  });
+
   s.test('诚实边界：forecast 块一律标 forecast，带结论块必须带来源', async () => {
     for (const key of ALL_KEYS) {
       const res = await admin.get(`/api/categories/${key}/detail`, { token: null });

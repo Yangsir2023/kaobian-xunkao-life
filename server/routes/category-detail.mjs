@@ -9,6 +9,9 @@ import { CODES, fail, ok } from '../lib/errors.mjs';
 import { CATEGORY_KEYS } from '../catalog.mjs';
 import { categoryDetail } from '../category-detail.mjs';
 import { COMMUNITY_JOBS, communityJobsByProvince, communityJobsSummary } from '../community-jobs.mjs';
+import { RURAL_COORDINATOR_JOBS, ruralCoordinatorByProvince, ruralCoordinatorSummary } from '../rural-coordinator-jobs.mjs';
+import { GRID_WORKER_JOBS, gridWorkerByProvince, gridWorkerSummary } from '../grid-worker-jobs.mjs';
+import { WUHAN_DOUBLE_BLIND, wuhanDoubleBlindByProvince, wuhanDoubleBlindSummary } from '../wuhan-double-blind.mjs';
 
 export function registerCategoryRoutes(router) {
   // 全国社区工作者公告清单（单独接口：清单较长，前端也支持只看某省）
@@ -20,6 +23,40 @@ export function registerCategoryRoutes(router) {
     levels: COMMUNITY_JOBS.levels,
     summary: communityJobsSummary(),
     provinces: communityJobsByProvince(),
+  }));
+
+  // 全国乡村振兴协理员公告清单（单独接口）
+  router.get('/api/rural-coordinator-jobs', async () => ok({
+    intro: RURAL_COORDINATOR_JOBS.intro,
+    caveat: RURAL_COORDINATOR_JOBS.caveat,
+    updatedAt: RURAL_COORDINATOR_JOBS.updatedAt,
+    year: RURAL_COORDINATOR_JOBS.year,
+    levels: RURAL_COORDINATOR_JOBS.levels,
+    summary: ruralCoordinatorSummary(),
+    provinces: ruralCoordinatorByProvince(),
+  }));
+
+  // 全国网格员公告清单（单独接口）
+  router.get('/api/grid-worker-jobs', async () => ok({
+    intro: GRID_WORKER_JOBS.intro,
+    caveat: GRID_WORKER_JOBS.caveat,
+    updatedAt: GRID_WORKER_JOBS.updatedAt,
+    year: GRID_WORKER_JOBS.year,
+    levels: GRID_WORKER_JOBS.levels,
+    summary: gridWorkerSummary(),
+    provinces: gridWorkerByProvince(),
+  }));
+
+  // 武汉双盲考试专项清单（单独接口）
+  router.get('/api/wuhan-double-blind', async () => ok({
+    intro: WUHAN_DOUBLE_BLIND.intro,
+    caveat: WUHAN_DOUBLE_BLIND.caveat,
+    doubleBlind: WUHAN_DOUBLE_BLIND.doubleBlind,
+    updatedAt: WUHAN_DOUBLE_BLIND.updatedAt,
+    year: WUHAN_DOUBLE_BLIND.year,
+    levels: WUHAN_DOUBLE_BLIND.levels,
+    summary: wuhanDoubleBlindSummary(),
+    provinces: wuhanDoubleBlindByProvince(),
   }));
 
   router.get('/api/categories/:key/detail', async (ctx) => {

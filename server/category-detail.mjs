@@ -24,6 +24,9 @@ import { COLD_EXAMS } from './cold-exams.mjs';
 import { OTHER_EXAM_TIMELINE, SHENGKAO_OUTLOOK, GUOKAO_2027_FACTS, GUOKAO_AVOID } from './best-recommend.mjs';
 import { RENCAI_QS200_GUIDE } from './position-catalog.mjs';
 import { COMMUNITY_JOBS, communityJobsByProvince, communityJobsSummary } from './community-jobs.mjs';
+import { RURAL_COORDINATOR_JOBS, ruralCoordinatorByProvince, ruralCoordinatorSummary } from './rural-coordinator-jobs.mjs';
+import { GRID_WORKER_JOBS, gridWorkerByProvince, gridWorkerSummary } from './grid-worker-jobs.mjs';
+import { WUHAN_DOUBLE_BLIND, wuhanDoubleBlindByProvince, wuhanDoubleBlindSummary } from './wuhan-double-blind.mjs';
 
 export const CATEGORY_DETAIL_UPDATED_AT = '2026-10-15';
 
@@ -210,11 +213,26 @@ const GUIDES = {
     ),
     hukouNote:
       '事业单位户籍口径本次未逐省核到原文——没出现在「外地可考」清单里，既不等于限户籍，也不等于不限户籍；部分单招岗位限本区户籍或居住证，报名前以当年公告为准。',
+    // 武汉双盲考试：武汉事业编招聘的「双盲」面试机制，对无本地关系的留学生最友好
+    wuhanDoubleBlind: {
+      intro: WUHAN_DOUBLE_BLIND.intro,
+      caveat: WUHAN_DOUBLE_BLIND.caveat,
+      doubleBlind: WUHAN_DOUBLE_BLIND.doubleBlind,
+      updatedAt: WUHAN_DOUBLE_BLIND.updatedAt,
+      levels: WUHAN_DOUBLE_BLIND.levels,
+      summary: wuhanDoubleBlindSummary(),
+      provinces: wuhanDoubleBlindByProvince(),
+    },
     notes: [
       {
         text: '部分省份（如河南）是省内自主联考，不参加全国 ABCD E 类联考，别按全国联考时间等。',
         sourceUrl: null,
         sourceName: null,
+      },
+      {
+        text: '武汉是「双盲」面试的标杆考场：考生抽签定序、考官抽签定场、考生随机抽考官组，考前互不知晓对应关系。武汉事业编一般不限户籍，留学生重点盯每年 2 月（综合岗）与 7 月（教师编）两场。',
+        sourceUrl: 'http://www.whptc.org/',
+        sourceName: '武汉市人事考试院',
       },
     ],
   },
@@ -241,9 +259,19 @@ const GUIDES = {
       sourceName: '上海市人民政府 · 2026 年普陀区社区工作者公开招聘公告',
     },
     forecast: timelineToBlock(findTimeline(['社区工作者']), '多地集中在 9 月发布公告，9—10 月报名与笔试（按历年规律推算）'),
+    // 网格员：与社区工作者相邻的基层治理岗位，门槛低、基本不卡户籍，但多为临聘无编
+    gridJobs: {
+      intro: GRID_WORKER_JOBS.intro,
+      caveat: GRID_WORKER_JOBS.caveat,
+      updatedAt: GRID_WORKER_JOBS.updatedAt,
+      levels: GRID_WORKER_JOBS.levels,
+      summary: gridWorkerSummary(),
+      provinces: gridWorkerByProvince(),
+    },
     notes: [
       { text: '各区口径差异极大：同一「社区工作者」，黄浦应届不限、普陀要 120 积分、徐汇要居住证三年——必须逐区读公告。', sourceUrl: null, sourceName: null },
       { text: '社区招聘没有全国统一考试，全年滚动发文，本页「全国公告清单」是按省收的 2026 年公开公告，带人数、报名窗口与来源链接；清单不是全国穷举，7 个省份未取到可引用原文已单独标注。', sourceUrl: null, sourceName: null },
+      { text: '网格员与社区工作者是相邻岗位，但绝大多数是临聘（无事业编制）、薪资偏低；它的最大卖点是「基本不卡户籍」，适合作为保底 / 过渡，别当成「上岸」。', sourceUrl: null, sourceName: null },
     ],
   },
 
@@ -455,6 +483,14 @@ const GUIDES = {
       sourceUrl: 'https://hu.offcn.com/html/2026/05/301941.html',
       sourceName: '荆州人事考试网 · 2026 年荆州市江陵县定向招聘大学生村级后备干部公告（中公教育转载）',
     },
+    ruralJobs: {
+      intro: RURAL_COORDINATOR_JOBS.intro,
+      caveat: RURAL_COORDINATOR_JOBS.caveat,
+      updatedAt: RURAL_COORDINATOR_JOBS.updatedAt,
+      levels: RURAL_COORDINATOR_JOBS.levels,
+      summary: ruralCoordinatorSummary(),
+      provinces: ruralCoordinatorByProvince(),
+    },
     notes: [
       { text: '乡镇最低服务期限 5 年（在村工作不少于 2 年），服务期内不得报考事业单位及参加公务员招录——把它当成「上岸」而不是「跳板」。', sourceUrl: null, sourceName: null },
       { text: '县乡自招写法反直觉：江陵县是「应届生须本县户籍、非应届户籍不限」；铅山县与婺源县许村镇要求本人或父母本地户籍 / 房产或居住满一年。待遇与编制天差地别（许村镇月薪 3000 元且无编）。必须逐公告核对。', sourceUrl: null, sourceName: null },
@@ -650,6 +686,11 @@ export function categoryDetail(key, positionCount = 0) {
             provinces: communityJobsByProvince(),
           }
         : null,
+    // 乡村振兴协理员（村官 / 协理员页）、网格员（社区工作者页）、武汉双盲考试（事业单位页）
+    // 这几类同样是「省市区县各自发文 / 地方专项」，各自只在对应类别有数据
+    ruralJobs: cfg.ruralJobs || null,
+    gridJobs: cfg.gridJobs || null,
+    wuhanDoubleBlind: cfg.wuhanDoubleBlind || null,
     guides: cfg.guides || [],
     positions: {
       examTypes,

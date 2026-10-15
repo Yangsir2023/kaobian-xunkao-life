@@ -326,6 +326,18 @@ async function main() {
     await goto('/category/shequ');
     await sleep(900);
     await shotLong('33-category-detail-shequ-national', 3200);
+    // 9d. 村官：乡村振兴协理员全国清单（河南带编不限户籍 + 北京/广西对照）
+    await goto('/category/cunban');
+    await sleep(900);
+    await shotLong('34-category-detail-cunban-rural', 2600);
+    // 9e. 社区工作者（续）：网格员全国清单（临聘无编 + 户籍只要求国籍）
+    await goto('/category/shequ');
+    await sleep(900);
+    await shotLong('35-category-detail-shequ-grid', 3400);
+    // 9f. 事业单位：武汉双盲考试专项清单（抽签机制 + 双盲面试标签）
+    await goto('/category/shiye');
+    await sleep(900);
+    await shotLong('36-category-detail-shiye-wuhan-double-blind', 3000);
   } finally {
     try {
       if (cdp) await cdp.send('Browser.close');

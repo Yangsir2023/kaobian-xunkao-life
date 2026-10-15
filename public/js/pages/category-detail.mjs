@@ -31,7 +31,7 @@ const HUKOU_STYLES = {
   mixed: { name: '各地自定 · 逐公告看', color: '#7A4FD1', accent: '#F1ECFC' },
 };
 
-const state = { data: null, cjFilter: 'all' };
+const state = { data: null };
 
 export default {
   tab: null,
@@ -73,31 +73,36 @@ export default {
       });
     }
 
-    mountCommunityJobs(root);
+    mountJobsBoard(root, 'cj');
+    mountJobsBoard(root, 'rj');
+    mountJobsBoard(root, 'gj');
+    mountJobsBoard(root, 'wj');
   },
 };
 
-/** 全国公告清单：省份筛选 chip + 全部展开 / 收起 */
-function mountCommunityJobs(root) {
-  const card = root.querySelector('#cj-card');
+/** 招聘看板（社区工作者 / 乡村振兴协理员 / 网格员 / 武汉双盲）：省份筛选 chip + 全部展开 / 收起
+ *  prefix 用于隔离多个看板同页时的 id / data 属性 / 筛选状态。 */
+function mountJobsBoard(root, prefix) {
+  const card = root.querySelector(`#${prefix}-card`);
   if (!card) return;
-  const groups = [...card.querySelectorAll('[data-cj-province]')];
+  const groups = [...card.querySelectorAll(`[data-${prefix}-province]`)];
+  const toggleAll = card.querySelector(`#${prefix}-toggle-all`);
+  if (toggleAll) toggleAll.dataset.state = 'open'; // 初始全展开
 
   const applyFilter = (key) => {
-    state.cjFilter = key;
     card.querySelectorAll('.cj-chip').forEach((c) => {
-      c.classList.toggle('is-on', c.dataset.cjFilter === key);
+      c.classList.toggle('is-on', c.dataset[`${prefix}Filter`] === key);
     });
     groups.forEach((g) => {
-      g.hidden = key !== 'all' && g.dataset.cjProvince !== key;
+      g.hidden = key !== 'all' && g.dataset[`${prefix}Province`] !== key;
     });
   };
 
   card.querySelectorAll('.cj-chip').forEach((chip) => {
-    chip.addEventListener('click', () => applyFilter(chip.dataset.cjFilter));
+    const k = chip.dataset[`${prefix}Filter`];
+    if (k) chip.addEventListener('click', () => applyFilter(k));
   });
 
-  const toggleAll = card.querySelector('#cj-toggle-all');
   if (toggleAll) {
     toggleAll.addEventListener('click', () => {
       const shouldOpen = toggleAll.dataset.state !== 'open';
@@ -105,7 +110,6 @@ function mountCommunityJobs(root) {
         g.open = shouldOpen;
       });
       toggleAll.dataset.state = shouldOpen ? 'open' : 'closed';
-      toggleAll.textContent = shouldOpen ? '全部展开中 · 点击收起' : '全部收起中 · 点击展开';
       toggleAll.textContent = shouldOpen ? '全部收起' : '全部展开';
     });
   }
@@ -124,7 +128,10 @@ function shellHtml(d) {
     ${forecastHtml(d.forecast)}
     ${d.hukou ? hukouHtml(d.hukou) : hukouPendingHtml(d.hukouPending)}
     ${guidesHtml(d.guides)}
-    ${communityJobsHtml(d.communityJobs)}
+    ${jobsBoardHtml(d.communityJobs, { id: 'cj', prefix: 'cj', title: `全国公告清单 · ${d.communityJobs?.year ?? ''}` })}
+    ${jobsBoardHtml(d.ruralJobs, { id: 'rj', prefix: 'rj', title: '乡村振兴协理员 · 全国公告清单' })}
+    ${jobsBoardHtml(d.gridJobs, { id: 'gj', prefix: 'gj', title: '网格员 · 全国公告清单' })}
+    ${jobsBoardHtml(d.wuhanDoubleBlind, { id: 'wj', prefix: 'wj', title: '武汉双盲考试 · 专项' })}
     ${announcementsHtml(d.announcements)}
     ${positionsHtml(d.positions)}
     ${linksHtml(d.links)}
@@ -303,46 +310,55 @@ function guidesHtml(guides) {
 }
 
 /**
- * 全国公告清单（社区工作者这类「省市区县各自发文」的类别才有）。
- * 每条带人数 / 报名窗口 / 户籍口径 / 来源链接；明确写了国（境）外学历口径的单独高亮。
+ * 通用招聘看板（社区工作者 / 乡村振兴协理员 / 网格员 / 武汉双盲 共用）。
+ * 每条带人数 / 报名窗口 / 户籍口径 / 来源链接；双盲考试标「双盲面试」徽标，
+ * 明确写了国（境）外学历口径的单独高亮。opts.prefix 隔离同页多个看板的 id / data 属性。
  */
-function communityJobsHtml(block) {
+function jobsBoardHtml(block, opts) {
   if (!block || !block.provinces || !block.provinces.length) return '';
   const s = block.summary;
-  const provinces = [...block.provinces].sort((a, b) => b.headcount - a.headcount);
+  const provinces = [...block.provinces].sort((a, b) => (b.headcount || 0) - (a.headcount || 0));
   const chips = [
-    `<button class="cj-chip is-on" data-cj-filter="all">全部 ${s.provinceCount} 省</button>`,
+    `<button class="cj-chip is-on" data-${opts.prefix}-filter="all">全部 ${s.provinceCount} 省/市</button>`,
     ...provinces
       .filter((p) => p.headcount > 0)
       .map(
         (p) =>
-          `<button class="cj-chip" data-cj-filter="${escapeHtml(p.key)}">${escapeHtml(p.name)} ${p.headcount}</button>`
+          `<button class="cj-chip" data-${opts.prefix}-filter="${escapeHtml(p.key)}">${escapeHtml(p.name)} ${p.headcount}</button>`
       ),
   ].join('');
 
-  return `<div class="card mt-10" id="cj-card">
+  const dbBanner = block.doubleBlind
+    ? `<div class="notice notice-info mt-10">
+        ${icon('info', { size: 15 })}
+        <div class="grow"><b>双盲机制</b> ${escapeHtml(block.doubleBlind.text)}<div class="mt-4">${sourceLink(block.doubleBlind.sourceUrl, block.doubleBlind.sourceName)}</div></div>
+      </div>`
+    : '';
+
+  return `<div class="card mt-10" id="${opts.id}-card">
     <div class="card-pad">
       <div class="section-head" style="margin-bottom:6px">
-        <h3 class="section-title">全国公告清单 · ${escapeHtml(String(block.year))}</h3>
+        <h3 class="section-title">${escapeHtml(opts.title)}</h3>
         <span class="badge" style="background:var(--surface-3);color:var(--text-2)">${escapeHtml(block.updatedAt)} 更新</span>
       </div>
       <p class="cd-text">${escapeHtml(block.intro)}</p>
+      ${dbBanner}
 
       <div class="cj-stats mt-10">
         <div class="cj-stat"><b>${fmtNum(s.headcount)}</b><span>清单内合计人数</span></div>
         <div class="cj-stat"><b>${s.itemCount}</b><span>公告条数</span></div>
-        <div class="cj-stat"><b>${s.provincesWithData}/${s.provinceCount}</b><span>有公告的省份</span></div>
+        <div class="cj-stat"><b>${s.provincesWithData}/${s.provinceCount}</b><span>有公告的省/市</span></div>
         <div class="cj-stat"><b>${s.abroadCount}</b><span>写明留学生口径</span></div>
       </div>
 
       <div class="cj-chips mt-10">${chips}</div>
       <div class="cj-toolbar mt-6">
-        <button class="btn btn-ghost btn-sm" id="cj-toggle-all">全部收起</button>
+        <button class="btn btn-ghost btn-sm" id="${opts.id}-toggle-all">全部收起</button>
         <span class="tiny muted">官方原文 ${s.officialCount} 条 · 第三方整理 ${s.thirdpartyCount} 条</span>
       </div>
 
       <div class="cj-groups mt-10">
-        ${provinces.map((p) => provinceGroupHtml(p)).join('')}
+        ${provinces.map((p) => jobsProvinceGroupHtml(p, opts.prefix)).join('')}
       </div>
 
       <div class="notice notice-warn mt-10">
@@ -353,35 +369,43 @@ function communityJobsHtml(block) {
   </div>`;
 }
 
-function provinceGroupHtml(p) {
-  const noData = p.headcount === 0;
-  return `<details class="cj-group" data-cj-province="${escapeHtml(p.key)}" ${noData ? '' : 'open'}>
+function jobsProvinceGroupHtml(p, prefix) {
+  const noData = !p.headcount || p.headcount === 0;
+  return `<details class="cj-group" data-${prefix}-province="${escapeHtml(p.key)}" ${noData ? '' : 'open'}>
     <summary class="cj-group-head">
       <span class="cj-pname">${escapeHtml(p.name)}</span>
       <span class="cj-pmeta">${noData ? '未取到可引用原文' : `${fmtNum(p.headcount)} 人 · ${p.items.length} 条`}</span>
       ${icon('chevronRight', { size: 14, className: 'icon icon-sm cj-chevron' })}
     </summary>
     <div class="cj-items">
-      ${p.items.map((it) => communityJobItemHtml(it)).join('')}
+      ${p.items.map((it) => jobsItemHtml(it)).join('')}
     </div>
   </details>`;
 }
 
-function communityJobItemHtml(it) {
+function jobsItemHtml(it) {
   const meta = [];
   if (it.register) meta.push(`<span class="cj-tag">报名 ${escapeHtml(it.register)}</span>`);
   if (it.exam) meta.push(`<span class="cj-tag">${escapeHtml(it.exam)}</span>`);
+  const extra = [];
+  if (it.doubleBlind) extra.push(`<span class="cj-tag cj-tag-blind">双盲面试</span>`);
   return `<div class="cj-item">
     <div class="cj-item-head">
       <span class="cj-area">${escapeHtml(it.area)}</span>
       ${typeof it.count === 'number' ? `<span class="cj-count">${fmtNum(it.count)} 人</span>` : ''}
       ${levelBadge(it.level)}
+      ${extra.join('')}
     </div>
     ${meta.length ? `<div class="cj-meta">${meta.join('')}</div>` : ''}
     ${it.hukou ? `<div class="cj-line"><b>户籍</b> ${escapeHtml(it.hukou)}</div>` : ''}
     ${
       it.abroad
         ? `<div class="cj-abroad">${icon('globe', { size: 13, className: 'icon icon-sm' })}<span>${escapeHtml(it.abroad)}</span></div>`
+        : ''
+    }
+    ${
+      it.note
+        ? `<div class="cj-line cj-note"><b>说明</b> ${escapeHtml(it.note)}</div>`
         : ''
     }
     <div class="mt-4">${sourceLink(it.sourceUrl, it.sourceName)}</div>
