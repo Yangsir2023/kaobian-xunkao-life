@@ -23,6 +23,7 @@ import { HUKOU_GUIDE, HUKOU_LEVEL_MAP } from './hukou-guide.mjs';
 import { COLD_EXAMS } from './cold-exams.mjs';
 import { OTHER_EXAM_TIMELINE, SHENGKAO_OUTLOOK, GUOKAO_2027_FACTS, GUOKAO_AVOID } from './best-recommend.mjs';
 import { RENCAI_QS200_GUIDE } from './position-catalog.mjs';
+import { COMMUNITY_JOBS, communityJobsByProvince, communityJobsSummary } from './community-jobs.mjs';
 
 export const CATEGORY_DETAIL_UPDATED_AT = '2026-10-15';
 
@@ -242,6 +243,7 @@ const GUIDES = {
     forecast: timelineToBlock(findTimeline(['社区工作者']), '多地集中在 9 月发布公告，9—10 月报名与笔试（按历年规律推算）'),
     notes: [
       { text: '各区口径差异极大：同一「社区工作者」，黄浦应届不限、普陀要 120 积分、徐汇要居住证三年——必须逐区读公告。', sourceUrl: null, sourceName: null },
+      { text: '社区招聘没有全国统一考试，全年滚动发文，本页「全国公告清单」是按省收的 2026 年公开公告，带人数、报名窗口与来源链接；清单不是全国穷举，7 个省份未取到可引用原文已单独标注。', sourceUrl: null, sourceName: null },
     ],
   },
 
@@ -636,6 +638,18 @@ export function categoryDetail(key, positionCount = 0) {
     // 没核到户籍原文的类别：显式给「未核实」说明，不静默省略（与 hukou-guide 同一条纪律）
     hukouPending: cfg.hukouNote || null,
     announcements: findArchiveItems(cfg.archiveGroup),
+    // 全国公告清单：只有社区工作者这类「省市区县各自发文」的类别才有，其他类别为 null
+    communityJobs:
+      key === 'shequ'
+        ? {
+            intro: COMMUNITY_JOBS.intro,
+            caveat: COMMUNITY_JOBS.caveat,
+            updatedAt: COMMUNITY_JOBS.updatedAt,
+            levels: COMMUNITY_JOBS.levels,
+            summary: communityJobsSummary(),
+            provinces: communityJobsByProvince(),
+          }
+        : null,
     guides: cfg.guides || [],
     positions: {
       examTypes,

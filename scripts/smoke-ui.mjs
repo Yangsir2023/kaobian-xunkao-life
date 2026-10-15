@@ -805,6 +805,46 @@ async function main() {
     check('运营商仍有考什么与官方入口', yunyingshang.hasExamInfo && yunyingshang.hasOfficialSite);
     check('运营商仍有岗位深链横幅', yunyingshang.posBanner === true);
     check('480px 下运营商详情页无横向溢出', yunyingshang.docOverflow <= 1, `+${yunyingshang.docOverflow}`);
+
+    console.log('\n[7f] 社区工作者详情页 · 全国公告清单');
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/shequ?u=${Date.now()}` });
+    await sleep(1400);
+    const shequ = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hero: document.querySelector('.cd-hero-name')?.textContent || '',
+        hasCj: t.includes('全国公告清单'),
+        hasStats: t.includes('清单内合计人数'),
+        hasChip: !!document.querySelector('.cj-chip'),
+        hasGroup: !!document.querySelector('.cj-group'),
+        hasHubei: t.includes('武汉') || t.includes('湖北'),
+        hasAbroad: t.includes('留学生') || t.includes('国（境）外'),
+        hasCaveat: t.includes('不是全国穷举'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('社区工作者详情页渲染', shequ.hero.includes('社区工作者'), shequ.hero);
+    check('含「全国公告清单」板块', shequ.hasCj === true);
+    check('清单含统计数字（人数 / 省份 / 条数）', shequ.hasStats === true);
+    check('有省份筛选 chip', shequ.hasChip === true);
+    check('有省份折叠分组', shequ.hasGroup === true);
+    check('清单含武汉/湖北条目', shequ.hasHubei === true);
+    check('有留学生口径高亮', shequ.hasAbroad === true);
+    check('有覆盖度声明（不承诺穷举）', shequ.hasCaveat === true);
+    check('480px 下社区工作者详情页无横向溢出', shequ.docOverflow <= 1, `+${shequ.docOverflow}`);
+
+    // 点击省份 chip 过滤：默认「全部」选中，切换到「上海」后其他省份隐藏
+    await cdp.eval(`(() => {
+      const chip = [...document.querySelectorAll('.cj-chip')].find((c) => c.textContent.includes('上海'));
+      if (chip) chip.click();
+    })()`);
+    await sleep(400);
+    const cjFilter = await cdp.eval(`(() => ({
+      shanghaiVisible: !!document.querySelector('[data-cj-province="shanghai"]:not([hidden])'),
+      beijingHidden: document.querySelector('[data-cj-province="beijing"]')?.hidden === true,
+    }))()`);
+    check('点击上海 chip 后上海分组可见', cjFilter.shanghaiVisible === true);
+    check('点击上海 chip 后北京分组隐藏', cjFilter.beijingHidden === true);
   } finally {
     try {
       await cdp?.send('Page.close');

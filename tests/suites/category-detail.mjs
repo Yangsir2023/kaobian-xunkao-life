@@ -178,6 +178,35 @@ export function categoryDetailSuite({ admin }) {
     }
   });
 
+  s.test('社区工作者：全国公告清单有数据、结构正确、来源链接齐全', async () => {
+    const res = await admin.get('/api/categories/shequ/detail', { token: null });
+    const d = res.body.data;
+    assert(d.communityJobs, '社区工作者应有全国公告清单块');
+    const cj = d.communityJobs;
+    assert(cj.intro && cj.intro.includes('社区工作者'), '应有简介');
+    assert(cj.caveat && cj.caveat.includes('不是全国穷举'), '应有覆盖度声明');
+    assert(cj.summary.headcount > 0, '总人数 > 0');
+    assert(cj.summary.provincesWithData > 0, '有数据的省份 > 0');
+    assert(cj.summary.provinceCount >= 24, '覆盖省份数 ≥ 24');
+    assert(Array.isArray(cj.provinces), '应有省份数组');
+    // 每一条都应有来源链接（level 在白名单）
+    for (const p of cj.provinces) {
+      for (const it of p.items) {
+        assert(it.sourceUrl && it.sourceUrl.startsWith('http'), `${p.name}·${it.area} 应带来源链接`);
+        assert(['official', 'thirdparty'].includes(it.level), `${p.name}·${it.area} 级别应在白名单内`);
+      }
+    }
+  });
+
+  s.test('全国社区工作者公告清单独立接口：结构正确、可单独调用', async () => {
+    const res = await admin.get('/api/community-jobs', { token: null });
+    assertEqual(res.status, 200, 'HTTP 状态');
+    const d = res.body.data;
+    assert(d.summary.headcount > 0, '人数 > 0');
+    assert(Array.isArray(d.provinces), '省份数组');
+    assert(d.provinces.some((p) => p.name === '湖北' && p.items.some((i) => i.area.includes('武汉'))), '应含武汉/湖北条目');
+  });
+
   s.test('诚实边界：forecast 块一律标 forecast，带结论块必须带来源', async () => {
     for (const key of ALL_KEYS) {
       const res = await admin.get(`/api/categories/${key}/detail`, { token: null });

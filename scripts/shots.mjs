@@ -322,6 +322,10 @@ async function main() {
     await goto('/category/yunyingshang');
     await sleep(900);
     await shotLong('32-category-detail-yunyingshang', 1500);
+    // 9c. 社区工作者：全国公告清单（156 条 / 31 省 / 省份 chip 筛选 + 折叠分组）
+    await goto('/category/shequ');
+    await sleep(900);
+    await shotLong('33-category-detail-shequ-national', 3200);
   } finally {
     try {
       if (cdp) await cdp.send('Browser.close');

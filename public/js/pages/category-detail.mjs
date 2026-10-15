@@ -31,7 +31,7 @@ const HUKOU_STYLES = {
   mixed: { name: '各地自定 · 逐公告看', color: '#7A4FD1', accent: '#F1ECFC' },
 };
 
-const state = { data: null };
+const state = { data: null, cjFilter: 'all' };
 
 export default {
   tab: null,
@@ -72,8 +72,45 @@ export default {
         if (link) navigate(link);
       });
     }
+
+    mountCommunityJobs(root);
   },
 };
+
+/** 全国公告清单：省份筛选 chip + 全部展开 / 收起 */
+function mountCommunityJobs(root) {
+  const card = root.querySelector('#cj-card');
+  if (!card) return;
+  const groups = [...card.querySelectorAll('[data-cj-province]')];
+
+  const applyFilter = (key) => {
+    state.cjFilter = key;
+    card.querySelectorAll('.cj-chip').forEach((c) => {
+      c.classList.toggle('is-on', c.dataset.cjFilter === key);
+    });
+    groups.forEach((g) => {
+      g.hidden = key !== 'all' && g.dataset.cjProvince !== key;
+    });
+  };
+
+  card.querySelectorAll('.cj-chip').forEach((chip) => {
+    chip.addEventListener('click', () => applyFilter(chip.dataset.cjFilter));
+  });
+
+  const toggleAll = card.querySelector('#cj-toggle-all');
+  if (toggleAll) {
+    toggleAll.addEventListener('click', () => {
+      const shouldOpen = toggleAll.dataset.state !== 'open';
+      groups.forEach((g) => {
+        g.open = shouldOpen;
+      });
+      toggleAll.dataset.state = shouldOpen ? 'open' : 'closed';
+      toggleAll.textContent = shouldOpen ? '全部展开中 · 点击收起' : '全部收起中 · 点击展开';
+      toggleAll.textContent = shouldOpen ? '全部收起' : '全部展开';
+    });
+  }
+  applyFilter('all');
+}
 
 /* ───────────────── 视图 ───────────────── */
 
@@ -87,6 +124,7 @@ function shellHtml(d) {
     ${forecastHtml(d.forecast)}
     ${d.hukou ? hukouHtml(d.hukou) : hukouPendingHtml(d.hukouPending)}
     ${guidesHtml(d.guides)}
+    ${communityJobsHtml(d.communityJobs)}
     ${announcementsHtml(d.announcements)}
     ${positionsHtml(d.positions)}
     ${linksHtml(d.links)}
@@ -262,6 +300,96 @@ function guidesHtml(guides) {
   </div>`
     )
     .join('');
+}
+
+/**
+ * 全国公告清单（社区工作者这类「省市区县各自发文」的类别才有）。
+ * 每条带人数 / 报名窗口 / 户籍口径 / 来源链接；明确写了国（境）外学历口径的单独高亮。
+ */
+function communityJobsHtml(block) {
+  if (!block || !block.provinces || !block.provinces.length) return '';
+  const s = block.summary;
+  const provinces = [...block.provinces].sort((a, b) => b.headcount - a.headcount);
+  const chips = [
+    `<button class="cj-chip is-on" data-cj-filter="all">全部 ${s.provinceCount} 省</button>`,
+    ...provinces
+      .filter((p) => p.headcount > 0)
+      .map(
+        (p) =>
+          `<button class="cj-chip" data-cj-filter="${escapeHtml(p.key)}">${escapeHtml(p.name)} ${p.headcount}</button>`
+      ),
+  ].join('');
+
+  return `<div class="card mt-10" id="cj-card">
+    <div class="card-pad">
+      <div class="section-head" style="margin-bottom:6px">
+        <h3 class="section-title">全国公告清单 · ${escapeHtml(String(block.year))}</h3>
+        <span class="badge" style="background:var(--surface-3);color:var(--text-2)">${escapeHtml(block.updatedAt)} 更新</span>
+      </div>
+      <p class="cd-text">${escapeHtml(block.intro)}</p>
+
+      <div class="cj-stats mt-10">
+        <div class="cj-stat"><b>${fmtNum(s.headcount)}</b><span>清单内合计人数</span></div>
+        <div class="cj-stat"><b>${s.itemCount}</b><span>公告条数</span></div>
+        <div class="cj-stat"><b>${s.provincesWithData}/${s.provinceCount}</b><span>有公告的省份</span></div>
+        <div class="cj-stat"><b>${s.abroadCount}</b><span>写明留学生口径</span></div>
+      </div>
+
+      <div class="cj-chips mt-10">${chips}</div>
+      <div class="cj-toolbar mt-6">
+        <button class="btn btn-ghost btn-sm" id="cj-toggle-all">全部收起</button>
+        <span class="tiny muted">官方原文 ${s.officialCount} 条 · 第三方整理 ${s.thirdpartyCount} 条</span>
+      </div>
+
+      <div class="cj-groups mt-10">
+        ${provinces.map((p) => provinceGroupHtml(p)).join('')}
+      </div>
+
+      <div class="notice notice-warn mt-10">
+        ${icon('alert', { size: 15 })}
+        <div class="grow">${escapeHtml(block.caveat)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function provinceGroupHtml(p) {
+  const noData = p.headcount === 0;
+  return `<details class="cj-group" data-cj-province="${escapeHtml(p.key)}" ${noData ? '' : 'open'}>
+    <summary class="cj-group-head">
+      <span class="cj-pname">${escapeHtml(p.name)}</span>
+      <span class="cj-pmeta">${noData ? '未取到可引用原文' : `${fmtNum(p.headcount)} 人 · ${p.items.length} 条`}</span>
+      ${icon('chevronRight', { size: 14, className: 'icon icon-sm cj-chevron' })}
+    </summary>
+    <div class="cj-items">
+      ${p.items.map((it) => communityJobItemHtml(it)).join('')}
+    </div>
+  </details>`;
+}
+
+function communityJobItemHtml(it) {
+  const meta = [];
+  if (it.register) meta.push(`<span class="cj-tag">报名 ${escapeHtml(it.register)}</span>`);
+  if (it.exam) meta.push(`<span class="cj-tag">${escapeHtml(it.exam)}</span>`);
+  return `<div class="cj-item">
+    <div class="cj-item-head">
+      <span class="cj-area">${escapeHtml(it.area)}</span>
+      ${typeof it.count === 'number' ? `<span class="cj-count">${fmtNum(it.count)} 人</span>` : ''}
+      ${levelBadge(it.level)}
+    </div>
+    ${meta.length ? `<div class="cj-meta">${meta.join('')}</div>` : ''}
+    ${it.hukou ? `<div class="cj-line"><b>户籍</b> ${escapeHtml(it.hukou)}</div>` : ''}
+    ${
+      it.abroad
+        ? `<div class="cj-abroad">${icon('globe', { size: 13, className: 'icon icon-sm' })}<span>${escapeHtml(it.abroad)}</span></div>`
+        : ''
+    }
+    <div class="mt-4">${sourceLink(it.sourceUrl, it.sourceName)}</div>
+  </div>`;
+}
+
+function fmtNum(n) {
+  return Number(n || 0).toLocaleString('zh-CN');
 }
 
 function announcementsHtml(items) {
