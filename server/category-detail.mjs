@@ -309,6 +309,21 @@ const GUIDES = {
       level: 'official',
       headline: '2026 年度湖北已招录 2000 名（笔试 5-23 已结束）；下一场看 2027 年各省 5—7 月公告',
     },
+    thisYear: {
+      level: 'official',
+      headline: '湖北省 2026 年度「三支一扶」：招募 2000 名，笔试 5-23《综合能力测试》满分 100',
+      points: [
+        { label: '公告发布', value: '2026-04-16 · 湖北省人社厅', level: 'official' },
+        { label: '提交报考与加分申请', value: '4-18 10:00 — 4-24 17:00', level: 'official' },
+        { label: '资格初审', value: '4-18 — 4-25', level: 'official' },
+        { label: '打印准考证', value: '5-19 10:00 — 5-23 09:30', level: 'official' },
+        { label: '笔试', value: '5-23 09:00 — 11:00《综合能力测试》满分 100', level: 'official' },
+        { label: '成绩公布', value: '2026 年 6 月初', level: 'official' },
+        { label: '公示与到岗', value: '7 月中下旬公示，7 月底前到岗', level: 'official' },
+      ],
+      sourceUrl: 'http://rst.hubei.gov.cn/bmdt/ztzl/ywzl/hbsrlzyscgl/szyf/',
+      sourceName: '湖北省人社厅 · 三支一扶专栏（官方发布平台）',
+    },
     forecast: timelineToBlock(findTimeline(['三支一扶']), '各省公告大多 5—7 月发布、笔试多在 6—8 月（按历年规律推算）'),
     notes: [
       { text: '湖北口径：公告基本条件只列国籍、政治素质、学历与年龄，没有把户籍列为报考条件；国（境）外高校毕业生出具留服认证即可报。其他省份各自出题、各自定条件，部分限本省户籍或生源——不要把湖北的结论外推到全国。', sourceUrl: null, sourceName: null },
@@ -362,6 +377,18 @@ const GUIDES = {
     archiveGroup: null,
     hukouExamType: 'xibu',
     summary: { level: 'official', headline: '2026 年度报名已结束（3-01 至 5-10）；2027 年度预计 3—5 月' },
+    thisYear: {
+      level: 'official',
+      headline: '2026 年度西部计划：全国预计新招募约 6 万人、赴 27 个省（区、市）与新疆兵团，报名已结束',
+      points: [
+        { label: '招募规模', value: '2026 年全国预计新招募约 6 万人，赴 27 个省（区、市）和新疆生产建设兵团', level: 'official' },
+        { label: '报名窗口', value: '2026-03-01 至 05-10（已结束），通过本人所在高校项目办报名', level: 'official' },
+        { label: '报名资格', value: '应届毕业生（2026 年毕业的专科生 / 本科生 / 研究生）或在读研究生，不看户籍', level: 'official' },
+        { label: '选拔与到岗', value: '高校项目办审核通过即报名成功；各招募省组织笔试 / 面试 / 心理测试与体检，7 月底前到岗', level: 'official' },
+      ],
+      sourceUrl: 'https://xibu.youth.cn/gzdt/gddt/202603/t20260302_16534621.htm',
+      sourceName: '西部计划官网 · 2026 年大学生志愿服务西部计划报名开启',
+    },
     forecast: timelineToBlock(findTimeline(['西部计划']), '预计 2027 年 3—5 月报名、5—6 月选拔（按历年规律推算）'),
     notes: [
       { text: '不是编制，是志愿服务项目；须经所在院系团委与学校项目办审核，服务岗位原则上不得跨省调整。服务地多为乡镇及以下（90% 以上岗位）。', sourceUrl: null, sourceName: null },
@@ -518,6 +545,24 @@ const GUIDES = {
       sourceUrl: 'https://kfq.jinhua.gov.cn/col/col1229093970/art/2026/art_b60800c25c2949a3a761cb8aecfba7b2.html',
       sourceName: '应急管理部 2026 年第 7 号公告（金华经济技术开发区管理委员会转载）',
     },
+  },
+
+  /* ═══════════ 运营商统招 ═══════════ */
+  yunyingshang: {
+    examTypes: ['yunyingshang'],
+    archiveGroup: null,
+    hukouExamType: null,
+    summary: {
+      level: 'forecast',
+      headline: '岗位库已收录运营商行（示例行）：秋招约 9—11 月、春招 3—4 月，计算机岗集中在人工智能 / 大数据方向',
+    },
+    hukouNote:
+      '运营商统招的户籍口径本次未核到公告原文——岗位库该考试类型目前只有示例行，还没核到任何一份真实公告。没出现 ≠ 限户籍，也不等于不限户籍。',
+    notes: [
+      { text: '该类别当前只有示例岗位行（「中国移动人工智能 / 大数据岗」为演示构造值），公告原文与报名入口均未核实——按「待核实」处理，不冒充已核实。', sourceUrl: null, sourceName: null },
+      { text: '运营商校园招聘是企业合同制，不是行政 / 事业编制；多数批次对国（境）外学历只要求留服认证，具体以各公司当年公告为准。', sourceUrl: null, sourceName: null },
+      { text: '各公司独立发布、独立网申、独立笔试：中国移动 / 中国电信 / 中国联通 / 中国铁塔要分别注册，别只盯一家。', sourceUrl: null, sourceName: null },
+    ],
   },
 };
 

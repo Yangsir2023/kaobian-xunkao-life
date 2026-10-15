@@ -318,6 +318,10 @@ async function main() {
     await goto('/category/xiaofang');
     await sleep(900);
     await shotLong('31-category-detail-xiaofang', 2200);
+    // 9b. 运营商：岗位库已收录但公告未核 —— 详情页显式「待核实」，仍给考什么与官方入口
+    await goto('/category/yunyingshang');
+    await sleep(900);
+    await shotLong('32-category-detail-yunyingshang', 1500);
   } finally {
     try {
       if (cdp) await cdp.send('Browser.close');

@@ -627,7 +627,7 @@ async function main() {
       cards: document.querySelectorAll('.cat-card').length,
       docOverflow: document.documentElement.scrollWidth - window.innerWidth,
     }))()`);
-    check('分类页渲染十六张类别卡', catGrid.cards === 16, `${catGrid.cards} 张`);
+    check('分类页渲染十七张类别卡', catGrid.cards === 17, `${catGrid.cards} 张`);
     check('分类页不撑破 480px 页面', catGrid.docOverflow <= 1, `+${catGrid.docOverflow}`);
 
     const rencaiCard = await cdp.eval(`(() => {
@@ -783,7 +783,28 @@ async function main() {
       examLines: document.querySelectorAll('.cat-card .cat-exam').length,
       sample: document.querySelector('.cat-card .cat-exam')?.textContent.trim() || '',
     }))()`);
-    check('分类卡带考什么一行概要', catExam.cards >= 16 && catExam.examLines >= 15, `${catExam.examLines}/${catExam.cards} 张 · 示例「${catExam.sample.slice(0, 30)}」`);
+    check('分类卡带考什么一行概要', catExam.cards === 17 && catExam.examLines >= 17, `${catExam.examLines}/${catExam.cards} 张 · 示例「${catExam.sample.slice(0, 30)}」`);
+
+    // 运营商：岗位库已收录但公告未核 —— 详情页显式「待核实」，且仍能跳官方入口与岗位
+    await cdp.send('Page.navigate', { url: `${BASE}/#/category/yunyingshang?u=${Date.now()}` });
+    await sleep(1400);
+    const yunyingshang = await cdp.eval(`(() => {
+      const t = document.getElementById('app-main')?.innerText || '';
+      return {
+        hero: document.querySelector('.cd-hero-name')?.textContent || '',
+        hasUnverified: t.includes('未核实') && t.includes('示例'),
+        hasExamInfo: t.includes('考什么 · 备什么'),
+        hasOfficialSite: t.includes('官方入口'),
+        posBanner: !!document.querySelector('[data-cd-positions]'),
+        hasThisYear: t.includes('今年动态'),
+        docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    })()`);
+    check('运营商详情页渲染', yunyingshang.hero.includes('运营商'), yunyingshang.hero);
+    check('运营商公告未核显式标注（不冒充已核实）', yunyingshang.hasUnverified === true && yunyingshang.hasThisYear === false);
+    check('运营商仍有考什么与官方入口', yunyingshang.hasExamInfo && yunyingshang.hasOfficialSite);
+    check('运营商仍有岗位深链横幅', yunyingshang.posBanner === true);
+    check('480px 下运营商详情页无横向溢出', yunyingshang.docOverflow <= 1, `+${yunyingshang.docOverflow}`);
   } finally {
     try {
       await cdp?.send('Page.close');

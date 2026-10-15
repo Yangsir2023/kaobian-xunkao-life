@@ -15,6 +15,7 @@ import { suite, assert, assertEqual, assertIncludes } from '../helpers.mjs';
 const ALL_KEYS = [
   'guokao', 'shengkao', 'shiye', 'shequ', 'hubei-xuandiao', 'jundui', 'sanzhiyifu',
   'rencai', 'xibu', 'liufu', 'cunban', 'zhuanli', 'yancao', 'dianwang', 'nongxin', 'xiaofang',
+  'yunyingshang',
 ];
 
 export function categoryDetailSuite({ admin }) {
@@ -123,11 +124,37 @@ export function categoryDetailSuite({ admin }) {
     assertEqual(res.status, 404, 'HTTP 状态');
   });
 
+  s.test('运营商：岗位库已收录但公告未核 —— 显式走「待核实」，不冒充已核实', async () => {
+    const res = await admin.get('/api/categories/yunyingshang/detail', { token: null });
+    const d = res.body.data;
+    assertEqual(d.positions.examTypes.join(','), 'yunyingshang', '岗位深链考试类型');
+    assertEqual(d.positions.deepLink, '/positions?examType=yunyingshang', '深链路径');
+    // 没有核到公告：不给 thisYear / forecast 块，只在户籍与注意事项里说明
+    assertEqual(d.thisYear, null, '未核到公告不应有今年动态');
+    assertEqual(d.forecast, null, '未核到公告不应有明年预测');
+    assert(d.hukouPending && d.hukouPending.includes('未核到'), '户籍口径应标未核实');
+    assert(d.notes.some((n) => n.text.includes('示例') && n.text.includes('未核实')), '应说明只有示例行');
+    assert(d.links.length >= 1 && d.links[0].url.startsWith('http'), '官方入口应可用');
+    assert(d.examInfo && d.examInfo.subjects.length >= 1, '考什么仍应有（通用口径）');
+  });
+
+  s.test('三支一扶 / 西部计划：今年动态来自官方原文，不是推算', async () => {
+    for (const [key, part] of [['sanzhiyifu', '2000 名'], ['xibu', '6 万人']]) {
+      const res = await admin.get(`/api/categories/${key}/detail`, { token: null });
+      const d = res.body.data;
+      assert(d.thisYear, `${key} 应有今年动态`);
+      assertEqual(d.thisYear.level, 'official', `${key} 今年动态应为官方公告`);
+      assertIncludes(d.thisYear.headline, part, `${key} 规模`);
+      assert(d.thisYear.sourceUrl && d.thisYear.sourceUrl.startsWith('http'), `${key} 应带官方来源`);
+      assert(d.forecast && d.forecast.level === 'forecast', `${key} 明年预测应为推算`);
+    }
+  });
+
   s.test('考什么 · 备什么：目录与岗位行都带备考口径与官方入口', async () => {
     // 分类目录：16 类都带 examInfo（分类卡片与岗位详情弹层共用这份数据）
     const catRes = await admin.get('/api/catalog/categories', { token: null });
     const cats = catRes.body.data.categories;
-    assertEqual(cats.length, 16, '分类数');
+    assertEqual(cats.length, 17, '分类数');
     for (const c of cats) {
       assert(c.examInfo, `${c.key} 目录应带 examInfo`);
       assert(c.examInfo.subjects.length >= 1, `${c.key} 目录科目 ≥1`);
